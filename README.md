@@ -8,7 +8,9 @@
 - Power-up S/D/T/P/B/H/U/C, checkpoint, hồi sinh không giới hạn, không Game Over
 - Nâng cấp 5 chỉ số × 5 cấp bằng xu, lưu tiến trình bằng `localStorage`
 - Điều khiển cảm ứng (joystick nổi + 5 nút, đa điểm chạm, 3 kiểu bố cục) và bàn phím
-- Toàn bộ hình ảnh & âm thanh được tạo bằng code (placeholder, không dùng asset bản quyền)
+- Đồ họa v1.1: sprite vẽ bằng Canvas2D ở độ phân giải 2× (đổ bóng cel-shading, viền đen kiểu sticker), nền 4 lớp parallax, đạo cụ trang trí theo từng màn, hiệu ứng lửa đầu nòng / nổ / phát sáng cộng màu, HUD có ảnh chân dung
+- Nhân vật chính: đầu lấy từ ảnh chân dung `public/hero-head.png`, thân chiến binh chibi thiết kế nguyên bản
+- Âm thanh được tạo bằng code (không dùng asset bản quyền)
 
 ## Chạy local
 
@@ -60,7 +62,8 @@ src/
     entities.ts           Body/Solid/Proj/Hazard/Pickup/Warn
   scenes/                 Boot, Menu, LevelSelect, Upgrade, Settings, Credits, Game, HUD
   systems/                save (localStorage), sound (WebAudio synth), controls (touch + keyboard)
-  art/                    Sprite/background sinh bằng code
+  art/                    pen.ts (Canvas2D + outline), textures.ts (nhân vật/quái/boss/UI), themes.ts (nền, địa hình, đạo cụ)
+public/hero-head.png      Ảnh đầu nhân vật chính — thay file này (PNG nền trong suốt, tỉ lệ ~297×360) để đổi mặt
 ```
 
 Thông số chính lấy từ GDD: HP 100, speed 5 u/s, jump 11, gravity 25, Shot 10 dmg/0.15s, Throw 35/2.0s, Ricochet 45/2.2s, Smash 60/4.0s, Ultimate 150, hurt i-frame 0.7s, respawn i-frame 2s, bảng nâng cấp §12, HP quái §7 và boss §10.
@@ -68,7 +71,9 @@ Thông số chính lấy từ GDD: HP 100, speed 5 u/s, jump 11, gravity 25, Sho
 
 ## Test tự động
 
-`?level=N&bot&god&speed=8` — bot tự chơi màn N (chỉ dùng để kiểm thử).
+- `?level=N&bot&god&speed=8` — bot tự chơi màn N (chỉ dùng để kiểm thử)
+- `?sheet=hero_` — xem toàn bộ sprite theo tiền tố (`e_` quái, `b_` boss, `pr_` đạn)
+- `npm run test:sim` — chạy bot headless qua cả 10 màn
 
 ## Lưu ý IP
 

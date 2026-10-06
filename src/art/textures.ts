@@ -3,137 +3,184 @@ import { ALL_ENEMIES, EType } from '../game/enemy';
 import { BOSSES, BossType } from '../game/boss';
 import { PU_COLOR, PU_LETTER } from '../game/entities';
 import { PPU } from '../game/util';
+import { canvasTex, darken, hex, lighten, Pen } from './pen';
 
 /**
- * All art is generated procedurally at boot (placeholder art per GDD §23 — no external assets).
- * Characters face RIGHT; sprites flip for left. Origin convention: bottom-center = feet.
+ * All art is generated procedurally at boot with a Canvas2D pen (cel-shaded fills + dark outline,
+ * SNES run-and-gun look). Characters face RIGHT; sprites flip for left.
+ * The hero's head is the user-provided portrait (public/hero-head.png); the body is an original design.
  */
-type G = Phaser.GameObjects.Graphics;
+type G = Pen;
 
-const HERO = {
-  suit: 0x1d2b53, suit2: 0x2a3d70, accent: 0x1fa58f, chevron: 0xf08a24,
-  helmet: 0x34405a, visor: 0xffb347, skin: 0xe0b48a, boot: 0x141a2c, glove: 0x2b2f3a,
+export const HERO = {
+  suit: 0x203a7a, suit2: 0x2f55a8, plate: 0x3a66c4, accent: 0x1fb59b, chevron: 0xf08a24,
+  strap: 0x7a4a26, buckle: 0xf2c94c, glove: 0x1d6f66, boot: 0x2a2236, bootTrim: 0xf08a24, pad: 0x16295a,
 };
-
-function darken(c: number, k: number) {
-  const r = (c >> 16) & 255, g = (c >> 8) & 255, b = c & 255;
-  return (Math.round(r * k) << 16) | (Math.round(g * k) << 8) | Math.round(b * k);
-}
-function lighten(c: number, k: number) {
-  const r = (c >> 16) & 255, g = (c >> 8) & 255, b = c & 255;
-  return (Math.min(255, Math.round(r + (255 - r) * k)) << 16) | (Math.min(255, Math.round(g + (255 - g) * k)) << 8) | Math.min(255, Math.round(b + (255 - b) * k));
-}
-
-function tex(scene: Phaser.Scene, key: string, w: number, h: number, draw: (g: G) => void) {
-  const g = scene.make.graphics({ x: 0, y: 0 }, false);
-  draw(g);
-  g.generateTexture(key, Math.ceil(w), Math.ceil(h));
-  g.destroy();
-}
+export const HERO_W = 112, HERO_H = 128, HERO_FX = 52, HERO_FY = 122;
 
 /** Round shield with chevron emblem (original design). */
-export function drawShield(g: G, x: number, y: number, r: number) {
-  g.fillStyle(0x6d7a8c); g.fillCircle(x, y, r);
-  g.fillStyle(0x9aa6b8); g.fillCircle(x, y, r * 0.9);
-  g.fillStyle(0x1fa58f); g.fillCircle(x, y, r * 0.75);
-  g.fillStyle(0xc9d3e0); g.fillCircle(x, y, r * 0.52);
+export function drawShield(g: G, x: number, y: number, r: number, squash = 1) {
+  g.ctx.save(); g.ctx.translate(x, y); g.ctx.scale(squash, 1);
+  g.fillStyle(0x5d6a7c); g.fillCircle(0, 0, r);
+  g.fillStyle(0xb8c4d4); g.fillCircle(0, 0, r * 0.9);
+  g.fillStyle(0x1fb59b); g.fillCircle(0, 0, r * 0.74);
+  g.fillStyle(0xe8eef6); g.fillCircle(0, 0, r * 0.5);
   g.fillStyle(HERO.chevron);
-  const s = r * 0.42;
-  g.fillPoints([{ x: x - s, y: y - s * 0.45 }, { x, y: y + s * 0.5 }, { x: x + s, y: y - s * 0.45 }, { x: x + s, y: y + s * 0.05 }, { x, y: y + s }, { x: x - s, y: y + s * 0.05 }], true);
-  g.fillStyle(0xffffff, 0.35); g.fillCircle(x - r * 0.3, y - r * 0.35, r * 0.18);
+  const s = r * 0.4;
+  g.fillPoints([{ x: -s, y: -s * 0.45 }, { x: 0, y: s * 0.5 }, { x: s, y: -s * 0.45 }, { x: s, y: s * 0.08 }, { x: 0, y: s }, { x: -s, y: s * 0.08 }]);
+  g.flat(() => { g.fillStyle(0xffffff, 0.55); g.fillEllipse(-r * 0.35, -r * 0.42, r * 0.5, r * 0.25); });
+  g.lineStyle(Math.max(1, r * 0.06), 0x0d0f1a, 0.6); g.strokeCircle(0, 0, r * 0.74);
+  g.ctx.restore();
+}
+
+/** Cartoon limb: stroked polyline with inner outline + highlight (reads cleanly at small sizes). */
+function limb(g: G, pts: number[][], w: number, color: number) {
+  const c = g.ctx;
+  c.save(); c.lineCap = 'round'; c.lineJoin = 'round';
+  const path = () => { c.beginPath(); pts.forEach(([x, y], i) => (i ? c.lineTo(x, y) : c.moveTo(x, y))); };
+  path(); c.strokeStyle = hex(darken(color, 0.45)); c.lineWidth = w + 2.4; c.stroke();
+  path(); c.strokeStyle = hex(color); c.lineWidth = w; c.stroke();
+  c.translate(-w * 0.16, -w * 0.2);
+  path(); c.strokeStyle = hex(lighten(color, 0.3), 0.75); c.lineWidth = w * 0.28; c.stroke();
+  c.restore();
 }
 
 interface Pose {
-  legA: number; legB: number;  // horizontal foot offsets
-  liftA: number; liftB: number; // foot lift
-  crouch: boolean; lean: number;
-  arm: 'hold' | 'shoot' | 'up' | 'block' | 'throw' | 'victory';
-  shield: boolean; bob: number;
+  legA: number; legB: number; liftA: number; liftB: number;
+  crouch: boolean; lean: number; bob: number;
+  arm: 'hold' | 'shoot' | 'up' | 'block' | 'throw' | 'victory' | 'dash' | 'hero';
+  shield: boolean; swing: number; hurt?: boolean;
 }
 
-function drawHero(g: G, P: Pose) {
-  const fx = 34, fy = 79;
-  const ch = P.crouch ? 16 : 0;
-  const top = fy - 70 + ch + P.bob;
-  // back leg
-  const leg = (dx: number, lift: number, col: number) => {
-    const lh = P.crouch ? 14 : 26;
-    g.fillStyle(col); g.fillRoundedRect(fx - 5 + dx, fy - lh - 4 - lift, 10, lh, 3);
-    g.fillStyle(HERO.boot); g.fillRoundedRect(fx - 6 + dx, fy - 9 - lift, 14, 9, 3);
+function drawHero(g: G, P: Pose, head: CanvasImageSource | null, fx = HERO_FX, fy = HERO_FY) {
+  const cr = P.crouch ? 12 : 0;
+  const hipY = fy - 40 + cr + P.bob;
+  const top = fy - 74 + cr + P.bob; // shoulder line
+  const L = P.lean;
+  g.flat(() => { g.fillStyle(0x000000, 0.25); g.fillEllipse(fx, fy - 1, 46, 7); });
+
+  const leg = (side: number, dx: number, lift: number, col: number) => {
+    const hx = fx + side * 7 + L * 0.3, footX = fx + dx, footY = fy - 8 - lift;
+    const kneeX = (hx + footX) / 2 + (P.crouch ? 10 : 1.5), kneeY = (hipY + footY) / 2 - (P.crouch ? 4 : 0);
+    limb(g, [[hx, hipY], [kneeX, kneeY], [footX, footY]], 12, col);
+    // boot
+    g.fillStyle(HERO.boot); g.fillRoundedRect(footX - 8, footY - 6, 20, 13, { tl: 4, tr: 8, bl: 2, br: 4 });
+    g.flat(() => { g.fillStyle(HERO.bootTrim); g.fillRect(footX - 8, footY - 6, 13, 3); g.fillStyle(0x0d0f1a); g.fillRect(footX - 8, footY + 5, 20, 2.5); });
   };
-  leg(P.legB, P.liftB, darken(HERO.suit, 0.75));
   // back arm
-  g.fillStyle(darken(HERO.suit, 0.75)); g.fillRoundedRect(fx - 14 + P.lean, top + 22, 8, 20, 3);
+  const bsx = fx - 17 + L, bsy = top + 6;
+  let bel = [bsx - 4, top + 18], bh = [fx - 20 - P.swing + L, top + 29];
+  if (P.arm === 'shoot' || P.arm === 'block' || P.arm === 'dash' || P.arm === 'throw') { bel = [fx - 8 + L, top + 20]; bh = [fx + 4 + L, top + 18]; }
+  if (P.arm === 'hero') { bel = [bsx - 8, top + 16]; bh = [fx - 12 + L, hipY - 4]; }
+  limb(g, [[bsx, bsy], bel, bh], 10, darken(HERO.suit2, 0.75));
+  g.fillStyle(darken(HERO.glove, 0.8)); g.fillCircle(bh[0], bh[1], 5.5);
+
+  leg(-1, P.legB, P.liftB, darken(HERO.suit2, 0.72));
+
   // torso
-  g.fillStyle(HERO.suit); g.fillRoundedRect(fx - 12 + P.lean, top + 18, 24, 30 - (P.crouch ? 4 : 0), 6);
-  g.fillStyle(HERO.suit2); g.fillRect(fx - 12 + P.lean, top + 18, 24, 6);
-  g.fillStyle(HERO.accent); g.fillRect(fx - 12 + P.lean, top + 40 - (P.crouch ? 4 : 0), 24, 4);
+  g.fillStyle(HERO.suit);
+  g.fillPoints([{ x: fx - 20 + L, y: top }, { x: fx + 20 + L, y: top }, { x: fx + 15 + L * 0.6, y: hipY - 2 }, { x: fx - 15 + L * 0.6, y: hipY - 2 }]);
+  // pecs
+  g.fillStyle(HERO.plate); g.fillRoundedRect(fx - 17 + L, top + 3, 16, 13, 5); g.fillRoundedRect(fx + 1 + L, top + 3, 16, 13, 5);
+  g.flat(() => { g.fillStyle(HERO.accent); g.fillRect(fx - 1.8 + L, top + 2, 3.6, 22); });
   g.fillStyle(HERO.chevron);
-  const cx = fx + P.lean, cy = top + 28;
-  g.fillPoints([{ x: cx - 7, y: cy - 3 }, { x: cx, y: cy + 3 }, { x: cx + 7, y: cy - 3 }, { x: cx + 7, y: cy + 1 }, { x: cx, y: cy + 7 }, { x: cx - 7, y: cy + 1 }], true);
-  // front leg
-  leg(P.legA, P.liftA, HERO.suit);
-  // head + helmet
-  const hx = fx + 2 + P.lean, hy = top + 9;
-  g.fillStyle(HERO.skin); g.fillCircle(hx, hy + 2, 9);
-  g.fillStyle(HERO.helmet); g.fillRoundedRect(hx - 10, hy - 9, 20, 13, { tl: 9, tr: 9, bl: 2, br: 2 });
-  g.fillStyle(HERO.accent); g.fillRect(hx - 2, hy - 10, 4, 10);
-  g.fillStyle(HERO.visor); g.fillRoundedRect(hx + 1, hy - 1, 10, 5, 2);
-  g.fillStyle(0xffffff, 0.6); g.fillRect(hx + 3, hy, 4, 1.5);
+  const cx = fx + L, cy = top + 10;
+  g.fillPoints([{ x: cx - 8, y: cy - 3 }, { x: cx, y: cy + 3 }, { x: cx + 8, y: cy - 3 }, { x: cx + 8, y: cy + 1.5 }, { x: cx, y: cy + 7.5 }, { x: cx - 8, y: cy + 1.5 }]);
+  g.flat(() => {
+    g.lineStyle(1.3, darken(HERO.suit, 0.55), 0.9);
+    g.lineBetween(fx - 6 + L, top + 20, fx - 5 + L * 0.7, hipY - 5); g.lineBetween(fx + 6 + L, top + 20, fx + 5 + L * 0.7, hipY - 5);
+    g.lineBetween(fx - 9 + L, top + 22, fx + 9 + L, top + 22); g.lineBetween(fx - 8 + L, top + 27, fx + 8 + L, top + 27);
+  });
+  // strap, belt, pouch
+  g.fillStyle(HERO.strap); g.fillPoints([{ x: fx + 13 + L, y: top }, { x: fx + 19 + L, y: top + 2 }, { x: fx - 9 + L * 0.6, y: hipY - 2 }, { x: fx - 15 + L * 0.6, y: hipY - 4 }]);
+  g.fillStyle(HERO.strap); g.fillRoundedRect(fx - 16 + L * 0.6, hipY - 7, 32, 7, 2);
+  g.fillStyle(HERO.buckle); g.fillRoundedRect(fx - 4 + L * 0.6, hipY - 8, 8, 9, 2);
+  g.fillStyle(0x5a3a1e); g.fillRoundedRect(fx + 8 + L * 0.6, hipY - 6, 8, 10, 2);
+  g.fillStyle(darken(HERO.suit2, 0.8)); g.fillRoundedRect(fx - 14 + L * 0.5, hipY - 1, 28, 8, 4);
+
+  leg(1, P.legA, P.liftA, HERO.suit2);
+
+  // collar + head
+  g.fillStyle(HERO.pad); g.fillEllipse(fx + L, top + 1, 24, 8);
+  const hw = 41, hh = hw * 360 / 297;
+  const hx = fx + L - hw / 2 + 1, hy = top - hh + 7;
+  if (head) {
+    g.ctx.save();
+    if (P.hurt) { g.ctx.translate(hx + hw / 2, hy + hh); g.ctx.rotate(-0.14); g.ctx.translate(-(hx + hw / 2), -(hy + hh)); }
+    g.image(head, hx, hy, hw, hh);
+    g.ctx.restore();
+  } else { g.fillStyle(0xe8b88a); g.fillCircle(fx + L, top - 22, 20); }
+  // shoulder pads
+  g.fillStyle(HERO.pad); g.fillRoundedRect(fx - 24 + L, top - 1, 12, 11, 5); g.fillRoundedRect(fx + 12 + L, top - 1, 12, 11, 5);
+  g.flat(() => { g.fillStyle(HERO.accent); g.fillRect(fx - 24 + L, top + 7, 12, 2.2); g.fillRect(fx + 12 + L, top + 7, 12, 2.2); });
+
   // front arm + shield
-  const sx = fx + P.lean;
+  const sx = fx + 17 + L, sy = top + 6;
+  const arm = (el: number[], hand: number[]) => {
+    limb(g, [[sx, sy], el, hand], 10.5, HERO.suit2);
+    g.fillStyle(HERO.glove); g.fillCircle(hand[0], hand[1], 6);
+    g.flat(() => { g.fillStyle(lighten(HERO.glove, 0.25)); g.fillRoundedRect(hand[0] - 5, hand[1] - 9, 10, 4, 2); });
+  };
   switch (P.arm) {
-    case 'hold':
-      g.fillStyle(HERO.suit2); g.fillRoundedRect(sx + 4, top + 22, 8, 18, 3);
-      if (P.shield) drawShield(g, sx + 13, top + 34, 13);
+    case 'hold': case 'hero':
+      arm([sx + 4, sy + 13], [sx + 7 + P.swing * 0.4, sy + 24]);
+      if (P.shield) drawShield(g, sx + 11, sy + 19, 18, 0.62);
       break;
     case 'shoot':
-      g.fillStyle(HERO.suit2); g.fillRoundedRect(sx + 4, top + 22, 18, 8, 3);
-      g.fillStyle(HERO.glove); g.fillCircle(sx + 22, top + 26, 4);
-      if (P.shield) drawShield(g, sx + 23, top + 27, 12);
+      arm([sx + 12, sy + 5], [sx + 23, sy + 2]);
+      if (P.shield) drawShield(g, sx + 28, sy + 1, 17, 0.45);
       break;
     case 'up':
-      g.fillStyle(HERO.suit2); g.fillRoundedRect(sx + 4, top + 4, 8, 22, 3);
-      if (P.shield) drawShield(g, sx + 10, top + 1, 12);
+      arm([sx + 7, sy - 10], [sx + 8, sy - 24]);
+      if (P.shield) { g.ctx.save(); g.ctx.translate(sx + 8, sy - 31); g.ctx.scale(1, 0.45); drawShield(g, 0, 0, 17); g.ctx.restore(); }
       break;
-    case 'block':
-      g.fillStyle(HERO.suit2); g.fillRoundedRect(sx + 4, top + 20, 14, 8, 3);
-      if (P.shield) drawShield(g, sx + 20, top + 27, 17);
+    case 'block': case 'dash':
+      arm([sx + 9, sy + 9], [sx + 16, sy + 8]);
+      if (P.shield) drawShield(g, sx + 21, sy + 7, 23, 0.5);
       break;
     case 'throw':
-      g.fillStyle(HERO.suit2); g.fillRoundedRect(sx + 4, top + 20, 20, 7, 3);
-      g.fillStyle(HERO.glove); g.fillCircle(sx + 25, top + 23, 4);
+      arm([sx + 13, sy + 1], [sx + 26, sy - 4]);
       break;
     case 'victory':
-      g.fillStyle(HERO.suit2); g.fillRoundedRect(sx + 4, top + 2, 8, 24, 3);
-      if (P.shield) drawShield(g, sx + 9, top - 2, 12);
+      arm([sx + 10, sy - 10], [sx + 12, sy - 26]);
+      if (P.shield) drawShield(g, sx + 14, sy - 38, 16);
       break;
   }
 }
 
-export const HERO_FRAMES = ['idle', 'idle2', 'run0', 'run1', 'run2', 'run3', 'jump', 'fall', 'crouch', 'block', 'hurt', 'dash', 'victory', 'up', 'shoot', 'throw', 'crouchshoot'] as const;
+export const HERO_FRAMES = ['idle', 'idle2', 'run0', 'run1', 'run2', 'run3', 'run4', 'run5', 'jump', 'fall', 'crouch', 'block', 'hurt', 'dash', 'victory', 'up', 'shoot', 'throw', 'crouchshoot'] as const;
 
 function heroPose(f: string, shield: boolean): Pose {
-  const P: Pose = { legA: 0, legB: -4, liftA: 0, liftB: 0, crouch: false, lean: 0, arm: 'hold', shield, bob: 0 };
+  const P: Pose = { legA: 6, legB: -6, liftA: 0, liftB: 0, crouch: false, lean: 0, arm: 'hold', shield, bob: 0, swing: 0 };
+  const run = (a: number, b: number, la: number, lb: number, bob: number, sw: number) => { P.legA = a; P.legB = b; P.liftA = la; P.liftB = lb; P.bob = bob; P.lean = 3; P.arm = 'shoot'; P.swing = sw; };
   switch (f) {
     case 'idle2': P.bob = 1; break;
-    case 'run0': P.legA = 9; P.legB = -9; P.lean = 2; P.liftB = 3; P.arm = 'shoot'; break;
-    case 'run1': P.legA = 3; P.legB = -3; P.lean = 2; P.liftA = 5; P.bob = -2; P.arm = 'shoot'; break;
-    case 'run2': P.legA = -9; P.legB = 9; P.lean = 2; P.liftA = 3; P.arm = 'shoot'; break;
-    case 'run3': P.legA = -3; P.legB = 3; P.lean = 2; P.liftB = 5; P.bob = -2; P.arm = 'shoot'; break;
-    case 'jump': P.legA = 6; P.legB = -6; P.liftA = 8; P.liftB = 2; P.arm = 'shoot'; break;
-    case 'fall': P.legA = 3; P.legB = -7; P.liftA = 2; P.liftB = 6; P.arm = 'shoot'; break;
-    case 'crouch': P.crouch = true; P.legA = 6; P.legB = -6; P.arm = 'hold'; break;
-    case 'crouchshoot': P.crouch = true; P.legA = 6; P.legB = -6; P.arm = 'shoot'; break;
-    case 'block': P.legA = 6; P.legB = -8; P.arm = 'block'; P.lean = -1; break;
-    case 'hurt': P.legA = -4; P.legB = -10; P.lean = -4; P.arm = 'hold'; break;
-    case 'dash': P.legA = 10; P.legB = -12; P.lean = 6; P.liftB = 4; P.arm = 'block'; break;
-    case 'victory': P.arm = 'victory'; P.legA = 4; P.legB = -5; break;
+    case 'run0': run(15, -14, 0, 4, 0, 4); break;
+    case 'run1': run(8, -6, 2, 10, -2, 2); break;
+    case 'run2': run(-2, 4, 7, 4, -3, -2); break;
+    case 'run3': run(-14, 15, 4, 0, 0, -4); break;
+    case 'run4': run(-6, 8, 10, 2, -2, -2); break;
+    case 'run5': run(4, -2, 4, 7, -3, 2); break;
+    case 'jump': P.legA = 10; P.legB = -8; P.liftA = 14; P.liftB = 5; P.arm = 'shoot'; P.bob = -2; break;
+    case 'fall': P.legA = 6; P.legB = -10; P.liftA = 4; P.liftB = 9; P.arm = 'shoot'; break;
+    case 'crouch': P.crouch = true; P.legA = 13; P.legB = -11; P.arm = 'hold'; break;
+    case 'crouchshoot': P.crouch = true; P.legA = 13; P.legB = -11; P.arm = 'shoot'; break;
+    case 'block': P.legA = 11; P.legB = -11; P.arm = 'block'; P.lean = -1; break;
+    case 'hurt': P.legA = -3; P.legB = -13; P.lean = -5; P.arm = 'hold'; P.hurt = true; break;
+    case 'dash': P.legA = 17; P.legB = -17; P.lean = 7; P.liftB = 5; P.arm = 'dash'; break;
+    case 'victory': P.arm = 'victory'; P.legA = 9; P.legB = -9; break;
+    case 'hero': P.arm = 'hero'; P.legA = 11; P.legB = -11; break;
     case 'up': P.arm = 'up'; break;
     case 'shoot': P.arm = 'shoot'; break;
-    case 'throw': P.arm = 'throw'; P.legA = 7; P.legB = -6; P.lean = 3; break;
+    case 'throw': P.arm = 'throw'; P.legA = 11; P.legB = -9; P.lean = 4; break;
   }
   return P;
+}
+
+/** Large hero art for the title screen. */
+export function buildHeroPortrait(scene: Phaser.Scene, key: string, scale: number, frame = 'victory') {
+  const head = scene.textures.exists('heroHead') ? scene.textures.get('heroHead').getSourceImage() as CanvasImageSource : null;
+  canvasTex(scene, key, HERO_W * scale, HERO_H * scale, g => { g.ctx.scale(scale, scale); drawHero(g, heroPose(frame, true), head); }, { outline: 3 });
 }
 
 // ------------------------------------------------------------------ enemies
@@ -354,70 +401,144 @@ function drawBoss(g: G, b: BossType, atk: boolean, W: number, H: number) {
 
 // ------------------------------------------------------------------ builders
 export function buildTextures(scene: Phaser.Scene) {
-  // hero, with and without shield in hand
+  const head = scene.textures.exists('heroHead') ? scene.textures.get('heroHead').getSourceImage() as CanvasImageSource : null;
   for (const f of HERO_FRAMES) {
-    tex(scene, 'hero_' + f, 72, 82, g => drawHero(g, heroPose(f, true)));
-    tex(scene, 'heroNS_' + f, 72, 82, g => drawHero(g, heroPose(f, false)));
+    canvasTex(scene, 'hero_' + f, HERO_W, HERO_H, g => drawHero(g, heroPose(f, true), head), { outline: 1.6 });
+    canvasTex(scene, 'heroNS_' + f, HERO_W, HERO_H, g => drawHero(g, heroPose(f, false), head), { outline: 1.6 });
   }
-  tex(scene, 'shield', 36, 36, g => drawShield(g, 18, 18, 17));
+  canvasTex(scene, 'shield', 44, 44, g => drawShield(g, 22, 22, 19), { outline: 1.5 });
 
   for (const t of ALL_ENEMIES) {
-    const W = Math.ceil(t.w * PPU * 1.6 + 30), H = Math.ceil(t.h * PPU + 30);
-    for (let f = 0; f < 3; f++) tex(scene, `e_${t.key}_${f}`, W, H, g => drawEnemy(g, t, f, W, H));
+    const W = Math.ceil(t.w * PPU * 1.6 + 34), H = Math.ceil(t.h * PPU + 34);
+    for (let f = 0; f < 3; f++) canvasTex(scene, `e_${t.key}_${f}`, W, H, g => { g.ctx.translate(0, -2); drawEnemy(g, t, f, W, H); }, { outline: 2.2 });
   }
   for (const b of Object.values(BOSSES)) {
-    const W = Math.ceil(b.w * PPU * 1.5 + 40), H = Math.ceil(b.h * PPU * 1.4 + 20);
-    tex(scene, `b_${b.key}`, W, H, g => drawBoss(g, b, false, W, H));
-    tex(scene, `b_${b.key}_a`, W, H, g => drawBoss(g, b, true, W, H));
+    const W = Math.ceil(b.w * PPU * 1.5 + 44), H = Math.ceil(b.h * PPU * 1.4 + 24);
+    canvasTex(scene, `b_${b.key}`, W, H, g => { g.ctx.translate(0, -2); drawBoss(g, b, false, W, H); }, { outline: 3 });
+    canvasTex(scene, `b_${b.key}_a`, W, H, g => { g.ctx.translate(0, -2); drawBoss(g, b, true, W, H); }, { outline: 3 });
   }
 
-  // projectiles
-  tex(scene, 'pr_shot', 22, 12, g => { g.fillStyle(0x7fe0ff, 0.4); g.fillEllipse(11, 6, 22, 12); g.fillStyle(0xe6fbff); g.fillEllipse(13, 6, 12, 6); });
-  tex(scene, 'pr_plasma', 26, 16, g => { g.fillStyle(0x3be8d2, 0.45); g.fillEllipse(13, 8, 26, 16); g.fillStyle(0xd9fff9); g.fillEllipse(15, 8, 14, 8); });
-  tex(scene, 'pr_reflect', 24, 24, g => { g.fillStyle(0x7fffe0, 0.45); g.fillCircle(12, 12, 12); g.fillStyle(0xffffff); g.fillCircle(12, 12, 6); });
-  tex(scene, 'pr_bullet', 14, 14, g => { g.fillStyle(0xff7a2e, 0.5); g.fillCircle(7, 7, 7); g.fillStyle(0xffe0a0); g.fillCircle(7, 7, 4); });
-  tex(scene, 'pr_laser', 28, 8, g => { g.fillStyle(0xff2e5a, 0.5); g.fillRoundedRect(0, 0, 28, 8, 4); g.fillStyle(0xffd0dc); g.fillRoundedRect(3, 2, 22, 4, 2); });
-  tex(scene, 'pr_fire', 22, 22, g => { g.fillStyle(0xff4a1e, 0.5); g.fillCircle(11, 11, 11); g.fillStyle(0xffb02e); g.fillCircle(11, 11, 7); g.fillStyle(0xfff0a0); g.fillCircle(11, 11, 3); });
-  tex(scene, 'pr_ice', 20, 20, g => { g.fillStyle(0x9ad4f0); g.fillTriangle(10, 0, 20, 10, 10, 20); g.fillTriangle(10, 0, 0, 10, 10, 20); });
-  tex(scene, 'pr_sand', 18, 18, g => { g.fillStyle(0xcf9e5a, 0.6); g.fillCircle(9, 9, 9); g.fillStyle(0xf0d090); g.fillCircle(9, 9, 5); });
-  tex(scene, 'pr_acid', 18, 18, g => { g.fillStyle(0x9cff4a, 0.5); g.fillCircle(9, 9, 9); g.fillStyle(0xe0ff9a); g.fillCircle(9, 9, 5); });
-  tex(scene, 'pr_rock', 18, 18, g => { g.fillStyle(0x6a4a2a); g.fillCircle(9, 9, 8); g.fillStyle(0x8ce04a); g.fillCircle(6, 6, 3); });
-  tex(scene, 'pr_web', 26, 26, g => { g.lineStyle(2, 0xeeeeee, 0.9); for (let i = 0; i < 4; i++) { const a = i * Math.PI / 4; g.lineBetween(13 - Math.cos(a) * 12, 13 - Math.sin(a) * 12, 13 + Math.cos(a) * 12, 13 + Math.sin(a) * 12); } g.strokeCircle(13, 13, 6); g.strokeCircle(13, 13, 11); });
-  tex(scene, 'pr_shard', 20, 30, g => { g.fillStyle(0xbfe9ff); g.fillTriangle(10, 30, 0, 0, 20, 0); g.fillStyle(0xffffff, 0.7); g.fillTriangle(10, 24, 6, 2, 12, 2); });
-  tex(scene, 'pr_missile', 20, 40, g => { g.fillStyle(0x666b78); g.fillRoundedRect(4, 0, 12, 32, 5); g.fillStyle(0xff4a3a); g.fillTriangle(4, 30, 16, 30, 10, 40); g.fillStyle(0x444444); g.fillTriangle(0, 4, 4, 0, 4, 10); g.fillTriangle(20, 4, 16, 0, 16, 10); });
-  tex(scene, 'pr_egg', 30, 34, g => { g.fillStyle(0x5e3a7a); g.fillEllipse(15, 18, 28, 32); g.fillStyle(0x9cff4a, 0.7); g.fillEllipse(15, 18, 12, 16); });
-  tex(scene, 'pr_wave', 36, 40, g => { g.fillStyle(0xffffff, 0.25); g.fillTriangle(0, 40, 18, 0, 36, 40); g.fillStyle(0xffe0a0, 0.6); g.fillTriangle(6, 40, 18, 12, 30, 40); });
-  tex(scene, 'pr_lavawave', 70, 80, g => { g.fillStyle(0xff4a1e, 0.85); g.fillRoundedRect(0, 10, 70, 70, 20); g.fillStyle(0xffb02e); g.fillRoundedRect(8, 20, 54, 60, 16); g.fillStyle(0xfff0a0, 0.8); g.fillEllipse(35, 18, 50, 16); });
-  tex(scene, 'pr_pillar', 40, 150, g => { g.fillStyle(0x4a6a2a); g.fillRoundedRect(4, 10, 32, 140, 14); g.fillStyle(0xe0ff4a, 0.8); for (let i = 0; i < 5; i++) g.fillCircle(20, 25 + i * 26, 5); g.fillStyle(0x6e8a4a); g.fillTriangle(4, 20, 20, 0, 36, 20); });
+  // ---- projectiles (glowing cores) ----
+  const orb = (key: string, s: number, c: number, core = 0xffffff) => canvasTex(scene, key, s, s, g => {
+    g.glow(s / 2, s / 2, s / 2, c, 0.75); g.flat(() => { g.fillStyle(lighten(c, 0.4)); g.fillCircle(s / 2, s / 2, s * 0.26); g.fillStyle(core); g.fillCircle(s / 2, s / 2, s * 0.13); });
+  });
+  const bolt = (key: string, w: number, h: number, c: number) => canvasTex(scene, key, w, h, g => {
+    g.glow(w * 0.6, h / 2, h * 0.9, c, 0.6);
+    g.flat(() => { g.fillStyle(c, 0.6); g.fillEllipse(w / 2, h / 2, w, h * 0.8); g.fillStyle(lighten(c, 0.6)); g.fillEllipse(w * 0.6, h / 2, w * 0.6, h * 0.4); g.fillStyle(0xffffff); g.fillEllipse(w * 0.68, h / 2, w * 0.3, h * 0.22); });
+  });
+  bolt('pr_shot', 30, 16, 0x5fd8ff);
+  bolt('pr_plasma', 36, 20, 0x3be8d2);
+  bolt('pr_laser', 34, 10, 0xff2e5a);
+  orb('pr_reflect', 30, 0x7fffe0);
+  orb('pr_bullet', 18, 0xff7a2e, 0xfff0c0);
+  orb('pr_fire', 28, 0xff4a1e, 0xfff0a0);
+  orb('pr_sand', 22, 0xcf9e5a, 0xfff0c0);
+  orb('pr_acid', 22, 0x9cff4a, 0xf0ffd0);
+  canvasTex(scene, 'pr_ice', 20, 20, g => { g.fillStyle(0x9ad4f0); g.fillPoints([{ x: 10, y: 0 }, { x: 20, y: 10 }, { x: 10, y: 20 }, { x: 0, y: 10 }]); }, { outline: 1 });
+  canvasTex(scene, 'pr_rock', 20, 20, g => { g.fillStyle(0x6a4a2a); g.fillCircle(10, 10, 8); g.fillStyle(0x8ce04a); g.fillCircle(7, 7, 3); }, { outline: 1 });
+  canvasTex(scene, 'pr_web', 28, 28, g => { g.lineStyle(1.6, 0xeeeeee, 0.9); for (let i = 0; i < 4; i++) { const a = i * Math.PI / 4; g.lineBetween(14 - Math.cos(a) * 12, 14 - Math.sin(a) * 12, 14 + Math.cos(a) * 12, 14 + Math.sin(a) * 12); } g.strokeCircle(14, 14, 6); g.strokeCircle(14, 14, 11); });
+  canvasTex(scene, 'pr_shard', 22, 32, g => { g.fillStyle(0xbfe9ff); g.fillTriangle(11, 31, 1, 1, 21, 1); g.flat(() => { g.fillStyle(0xffffff, 0.8); g.fillTriangle(11, 24, 7, 3, 13, 3); }); }, { outline: 1 });
+  canvasTex(scene, 'pr_missile', 22, 44, g => {
+    g.glow(11, 4, 10, 0xffb03a, 0.7);
+    g.fillStyle(0x6a7080); g.fillRoundedRect(5, 2, 12, 32, 5); g.fillStyle(0xff4a3a); g.fillTriangle(5, 32, 17, 32, 11, 43);
+    g.fillStyle(0x3a3f4c); g.fillTriangle(1, 6, 5, 2, 5, 14); g.fillTriangle(21, 6, 17, 2, 17, 14); g.fillStyle(0xf2c94c); g.fillRect(5, 22, 12, 3);
+  }, { outline: 1 });
+  canvasTex(scene, 'pr_egg', 32, 36, g => { g.fillStyle(0x5e3a7a); g.fillEllipse(16, 19, 28, 32); g.flat(() => g.glow(16, 20, 10, 0x9cff4a, 0.8)); g.lineStyle(1.5, 0x2a1238, 0.8); g.lineBetween(10, 8, 14, 16); g.lineBetween(22, 10, 19, 18); }, { outline: 1.2 });
+  canvasTex(scene, 'pr_wave', 40, 44, g => { g.glow(20, 40, 22, 0xffe0a0, 0.6); g.flat(() => { g.fillStyle(0xffffff, 0.35); g.fillTriangle(2, 44, 20, 2, 38, 44); g.fillStyle(0xfff0c0, 0.75); g.fillTriangle(8, 44, 20, 14, 32, 44); }); });
+  canvasTex(scene, 'pr_lavawave', 74, 84, g => {
+    g.glow(37, 50, 40, 0xff6a1e, 0.6);
+    g.fillStyle(0xd8321e); g.fillRoundedRect(2, 12, 70, 72, 22); g.fillStyle(0xffa02e); g.fillRoundedRect(10, 22, 54, 62, 16);
+    g.flat(() => { g.fillStyle(0xfff0a0, 0.85); g.fillEllipse(37, 20, 52, 16); });
+  }, { outline: 1.5 });
+  canvasTex(scene, 'pr_pillar', 44, 152, g => {
+    g.fillStyle(0x4a6a2a); g.fillRoundedRect(6, 12, 32, 140, 14); g.fillStyle(0x6e8a4a); g.fillTriangle(6, 24, 22, 0, 38, 24);
+    g.flat(() => { for (let i = 0; i < 5; i++) g.glow(22, 30 + i * 25, 7, 0xe0ff4a, 0.9); });
+  }, { outline: 1.5 });
 
-  // pickups (capsule + letter)
+  // ---- pickups: glossy capsules ----
   for (let i = 0; i < PU_LETTER.length; i++) {
-    const key = 'pu_' + i;
-    const rt = scene.make.renderTexture({ width: 40, height: 40 }, false);
-    const g = scene.make.graphics({}, false);
-    if (i === 7) {
-      g.fillStyle(0xb8860b); g.fillCircle(20, 20, 13); g.fillStyle(0xf2c94c); g.fillCircle(20, 20, 11); g.fillStyle(0xfff3b0); g.fillRect(18, 13, 4, 14);
-    } else {
-      g.fillStyle(0xffffff, 0.25); g.fillCircle(20, 20, 19);
-      g.fillStyle(PU_COLOR[i]); g.fillRoundedRect(4, 6, 32, 28, 12);
-      g.lineStyle(2, 0xffffff, 0.9); g.strokeRoundedRect(4, 6, 32, 28, 12);
-    }
-    rt.draw(g);
-    if (i !== 7) {
-      const t = scene.make.text({ text: PU_LETTER[i], style: { fontFamily: 'Arial Black, Arial, sans-serif', fontSize: '20px', color: '#ffffff', fontStyle: 'bold' } }, false);
-      t.setOrigin(0.5); rt.draw(t, 20, 20); t.destroy();
-    }
-    rt.saveTexture(key);
-    g.destroy();
+    canvasTex(scene, 'pu_' + i, 44, 44, g => {
+      if (i === 7) {
+        g.fillStyle(0xb8860b); g.fillCircle(22, 22, 13); g.fillStyle(0xf2c94c); g.fillCircle(22, 22, 10.5);
+        g.flat(() => { g.fillStyle(0xfff3b0); g.fillRoundedRect(20, 15, 4, 14, 2); });
+      } else {
+        g.glow(22, 22, 22, PU_COLOR[i], 0.5);
+        g.fillStyle(darken(PU_COLOR[i], 0.7)); g.fillRoundedRect(5, 8, 34, 28, 13);
+        g.fillStyle(PU_COLOR[i]); g.fillRoundedRect(7, 10, 30, 24, 11);
+        g.flat(() => { g.fillStyle(0xffffff, 0.45); g.fillRoundedRect(11, 12, 22, 6, 3); });
+        const c = g.ctx; c.font = 'bold 19px Arial Black, Arial, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
+        c.lineWidth = 3.5; c.strokeStyle = 'rgba(13,15,26,0.9)'; c.strokeText(PU_LETTER[i], 22, 23.5);
+        c.fillStyle = '#ffffff'; c.fillText(PU_LETTER[i], 22, 23.5);
+      }
+    }, { outline: 1.2 });
   }
 
-  // hazards
-  tex(scene, 'barrel', 40, 48, g => { g.fillStyle(0xb8321e); g.fillRoundedRect(2, 0, 36, 48, 6); g.fillStyle(0x7a1e12); g.fillRect(2, 8, 36, 4); g.fillRect(2, 36, 36, 4); g.fillStyle(0xffd04a); g.fillTriangle(20, 16, 12, 32, 28, 32); g.fillStyle(0x222222); g.fillRect(19, 21, 2, 6); });
-  tex(scene, 'crate', 44, 44, g => { g.fillStyle(0x9a6a3a); g.fillRect(0, 0, 44, 44); g.lineStyle(3, 0x5a3a1a); g.strokeRect(2, 2, 40, 40); g.lineBetween(2, 2, 42, 42); g.lineBetween(42, 2, 2, 42); });
-  tex(scene, 'crusher', 88, 64, g => { g.fillStyle(0x555b66); g.fillRect(0, 0, 88, 52); g.fillStyle(0x30343c); for (let i = 0; i < 6; i++) g.fillTriangle(i * 15, 52, i * 15 + 7, 64, i * 15 + 14, 52); g.fillStyle(0xffd04a); for (let i = 0; i < 4; i++) g.fillRect(6 + i * 22, 8, 10, 6); });
-  tex(scene, 'icicle', 24, 48, g => { g.fillStyle(0xbfe9ff); g.fillTriangle(0, 0, 24, 0, 12, 48); g.fillStyle(0xffffff, 0.7); g.fillTriangle(4, 0, 10, 0, 9, 30); });
-  tex(scene, 'flag_off', 40, 130, g => { g.fillStyle(0x888888); g.fillRect(4, 0, 5, 130); g.fillStyle(0x666666); g.fillTriangle(9, 4, 38, 16, 9, 28); g.fillStyle(0x444444); g.fillRect(0, 124, 14, 6); });
-  tex(scene, 'flag_on', 40, 130, g => { g.fillStyle(0xdddddd); g.fillRect(4, 0, 5, 130); g.fillStyle(0x2bd67b); g.fillTriangle(9, 4, 38, 16, 9, 28); g.fillStyle(0xffffff); g.fillCircle(18, 16, 3); g.fillStyle(0x444444); g.fillRect(0, 124, 14, 6); });
-  tex(scene, 'dot', 8, 8, g => { g.fillStyle(0xffffff); g.fillRect(0, 0, 8, 8); });
-  tex(scene, 'glow', 64, 64, g => { for (let i = 8; i > 0; i--) { g.fillStyle(0xffffff, 0.06); g.fillCircle(32, 32, i * 4); } });
+  // ---- hazards / props ----
+  canvasTex(scene, 'barrel', 42, 50, g => {
+    g.fillStyle(0xb8321e); g.fillRoundedRect(3, 1, 36, 48, 7); g.fillStyle(0x7a1e12); g.fillRect(3, 9, 36, 4); g.fillRect(3, 37, 36, 4);
+    g.fillStyle(0xffd04a); g.fillTriangle(21, 16, 13, 32, 29, 32); g.flat(() => { g.fillStyle(0x222222); g.fillRect(20, 21, 2, 6); g.fillRect(20, 28.5, 2, 2); g.fillStyle(0xffffff, 0.25); g.fillRect(8, 3, 4, 44); });
+  }, { outline: 1.4 });
+  canvasTex(scene, 'crate', 46, 46, g => {
+    g.fillStyle(0xa8743e); g.fillRect(1, 1, 44, 44);
+    g.lineStyle(4, 0x5a3a1a); g.strokeRect(4, 4, 38, 38); g.lineBetween(5, 5, 41, 41);
+    g.flat(() => { g.fillStyle(0xd0a060, 0.4); for (let y = 8; y < 42; y += 9) g.fillRect(6, y, 34, 2); });
+  }, { outline: 1.4 });
+  canvasTex(scene, 'crusher', 90, 66, g => {
+    g.fillStyle(0x5d6470); g.fillRoundedRect(1, 1, 88, 52, 6);
+    g.fillStyle(0x30343c); for (let i = 0; i < 6; i++) g.fillTriangle(1 + i * 15, 52, 8 + i * 15, 65, 15 + i * 15, 52);
+    g.flat(() => { for (let i = 0; i < 5; i++) { g.fillStyle(i % 2 ? 0x222222 : 0xffd04a); g.fillPoints([{ x: 4 + i * 17, y: 10 }, { x: 14 + i * 17, y: 10 }, { x: 8 + i * 17, y: 22 }, { x: -2 + i * 17, y: 22 }]); } });
+    g.fillStyle(0x8a919c); for (const x of [8, 82]) g.fillCircle(x, 40, 3);
+  }, { outline: 1.4 });
+  canvasTex(scene, 'icicle', 26, 50, g => { g.fillStyle(0xbfe9ff); g.fillTriangle(1, 1, 25, 1, 13, 49); g.flat(() => { g.fillStyle(0xffffff, 0.7); g.fillTriangle(5, 1, 11, 1, 10, 32); }); }, { outline: 1.2 });
+  const flag = (key: string, on: boolean) => canvasTex(scene, key, 44, 134, g => {
+    g.fillStyle(0x4a4f5e); g.fillRoundedRect(0, 124, 18, 9, 3);
+    g.fillStyle(on ? 0xe0e6ee : 0x8a8f9a); g.fillRect(7, 4, 5, 122); g.fillCircle(9.5, 4, 4);
+    g.fillStyle(on ? 0x2bd67b : 0x666a74); g.fillPoints([{ x: 12, y: 8 }, { x: 42, y: 15 }, { x: 36, y: 22 }, { x: 42, y: 30 }, { x: 12, y: 34 }]);
+    if (on) g.flat(() => g.glow(25, 20, 18, 0x5aff8c, 0.5));
+  }, { outline: 1.2 });
+  flag('flag_off', false); flag('flag_on', true);
+
+  // ---- UI ----
+  canvasTex(scene, 'btn', 48, 48, g => {
+    const c = g.ctx, gr = c.createLinearGradient(0, 0, 0, 48);
+    gr.addColorStop(0, '#ffffff'); gr.addColorStop(0.5, '#d8d8d8'); gr.addColorStop(1, '#8a8a8a');
+    c.fillStyle = 'rgba(0,0,0,0.45)'; c.beginPath(); (c as any).roundRect(2, 5, 44, 42, 12); c.fill();
+    c.fillStyle = gr; c.beginPath(); (c as any).roundRect(2, 2, 44, 42, 12); c.fill();
+    c.strokeStyle = 'rgba(13,15,26,0.95)'; c.lineWidth = 2.5; c.stroke();
+    c.fillStyle = 'rgba(255,255,255,0.55)'; c.beginPath(); (c as any).roundRect(7, 5, 34, 7, 4); c.fill();
+  }, { shade: 0 });
+  {
+    const cv = document.createElement('canvas'); cv.width = 512; cv.height = 288;
+    const c = cv.getContext('2d')!; const gr = c.createRadialGradient(256, 144, 90, 256, 144, 300);
+    gr.addColorStop(0, 'rgba(0,0,0,0)'); gr.addColorStop(1, 'rgba(0,0,0,0.75)'); c.fillStyle = gr; c.fillRect(0, 0, 512, 288);
+    if (scene.textures.exists('vignette')) scene.textures.remove('vignette');
+    scene.textures.addCanvas('vignette', cv);
+  }
+  canvasTex(scene, 'logo', 560, 150, g => {
+    const c = g.ctx;
+    c.font = '900 76px Arial Black, Arial, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
+    c.lineJoin = 'round';
+    c.fillStyle = 'rgba(0,0,0,0.5)'; c.fillText('SHIELD FORCE', 283, 80);
+    c.lineWidth = 14; c.strokeStyle = '#0d0f1a'; c.strokeText('SHIELD FORCE', 280, 72);
+    c.lineWidth = 6; c.strokeStyle = '#1fb59b'; c.strokeText('SHIELD FORCE', 280, 72);
+    const gr = c.createLinearGradient(0, 36, 0, 108);
+    gr.addColorStop(0, '#ffffff'); gr.addColorStop(0.45, '#ffe28a'); gr.addColorStop(0.55, '#f0a028'); gr.addColorStop(1, '#c0501a');
+    c.fillStyle = gr; c.fillText('SHIELD FORCE', 280, 72);
+    c.globalCompositeOperation = 'source-atop'; c.fillStyle = 'rgba(255,255,255,0.35)'; c.fillRect(0, 36, 560, 16); c.globalCompositeOperation = 'source-over';
+    c.font = 'bold 20px Arial, sans-serif'; c.lineWidth = 5; c.strokeStyle = '#0d0f1a';
+    c.strokeText('— 2D RUN & GUN ACTION —', 280, 128); c.fillStyle = '#9ff0e2'; c.fillText('— 2D RUN & GUN ACTION —', 280, 128);
+  }, { shade: 0 });
+  buildHeroPortrait(scene, 'hero_portrait', 2.4, 'hero');
+  buildHeroPortrait(scene, 'hero_portrait_run', 2.4, 'shoot');
+
+  // ---- fx ----
+  canvasTex(scene, 'dot', 8, 8, g => g.flat(() => { g.fillStyle(0xffffff); g.fillRect(0, 0, 8, 8); }));
+  canvasTex(scene, 'glow', 64, 64, g => g.glow(32, 32, 32, 0xffffff, 0.9));
+  canvasTex(scene, 'flash', 40, 40, g => {
+    g.glow(20, 20, 20, 0xfff0a0, 0.9);
+    g.flat(() => { g.fillStyle(0xffffff); for (let i = 0; i < 6; i++) { const a = i * Math.PI / 3; g.fillTriangle(20 + Math.cos(a + 0.25) * 4, 20 + Math.sin(a + 0.25) * 4, 20 + Math.cos(a) * 18, 20 + Math.sin(a) * 18, 20 + Math.cos(a - 0.25) * 4, 20 + Math.sin(a - 0.25) * 4); } g.fillCircle(20, 20, 6); });
+  });
+  canvasTex(scene, 'ring', 64, 64, g => { g.lineStyle(5, 0xffffff, 0.9); g.strokeCircle(32, 32, 28); g.lineStyle(2, 0xffffff, 0.5); g.strokeCircle(32, 32, 22); });
+  canvasTex(scene, 'smoke', 32, 32, g => g.glow(16, 16, 16, 0x8a8f9a, 0.8));
+  canvasTex(scene, 'spark', 16, 16, g => { g.glow(8, 8, 8, 0xffffff, 1); g.flat(() => { g.fillStyle(0xffffff); g.fillRect(7, 0, 2, 16); g.fillRect(0, 7, 16, 2); }); });
 }

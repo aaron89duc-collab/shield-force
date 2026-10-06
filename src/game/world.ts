@@ -51,6 +51,8 @@ export class World {
   stormT = 0; storming = false;
   god = false; // debug/test only
   events: string[] = []; // consumed by the view (e.g. 'perfect', 'checkpoint')
+  fx: { k: string; x: number; y: number; s: number }[] = []; // visual one-shots for the renderer
+  pushFx(k: string, x: number, y: number, s = 1) { if (this.fx.length < 40) this.fx.push({ k, x, y, s }); }
   private lastHint = -1;
 
   constructor(public levelNum: number) {
@@ -227,6 +229,7 @@ export class World {
         this.hitStop = 0.05;
         this.sfx(Sfx.PERFECT);
         this.events.push('perfect');
+        this.pushFx('perfect', p.cx() + p.facing * 0.8, p.y + p.h - 1.1);
         vibrate(30);
         return 2;
       }
@@ -385,6 +388,7 @@ export class World {
   }
 
   explosionFx(x: number, y: number, scale: number) {
+    this.pushFx('boom', x, y, scale);
     this.particles(x, y, Math.round(14 * scale), 0xffb03a, 6 * scale, 0.5, 0.18 * scale, 2);
     this.particles(x, y, Math.round(8 * scale), 0xff4a2a, 4 * scale, 0.6, 0.22 * scale, -1);
     this.particles(x, y, Math.round(6 * scale), 0x555555, 2 * scale, 0.9, 0.25 * scale, -2);
@@ -449,6 +453,7 @@ export class World {
     this.flash(0xc9a0ff, 0.35);
     this.shake(0.5, 0.35);
     this.hitStop = 0.06;
+    this.pushFx('ult', p.cx(), p.cy());
     this.particles(p.cx(), p.cy(), 60, 0xc98cff, 10, 0.7, 0.18, 0);
     this.particles(p.cx(), p.cy(), 30, 0xffffff, 7, 0.5, 0.12, 0);
     const R = 6.5;
@@ -499,6 +504,7 @@ export class World {
         e.shieldStamp = s.stamp;
         e.hurt(this, s.dmg, s.x - s.vx, true);
         this.particles(s.x, s.y, 8, 0xffffff, 4, 0.25, 0.08, 0);
+        this.pushFx('hit', s.x, s.y);
         this.sfx(Sfx.HIT);
         if (s.bomb && !s.exploded) { s.exploded = true; this.explode(s.x, s.y, 2.2, 30, 0, true); }
         if (s.ricochet && s.state === 'out') {
@@ -567,6 +573,7 @@ export class World {
         if (!consumed && this.boss && this.boss.hitTest(p.x - hw, p.y - hh, p.w, p.h)) {
           const dealt = this.boss.hurt(this, Math.max(1, Math.round(p.dmg * p.bossMul)), p.x, p.y);
           this.particles(p.x, p.y, 3, dealt > p.dmg ? 0xffe04a : 0xffffff, 3, 0.15, 0.06, 0);
+          if (dealt > 0) this.pushFx('hit', p.x, p.y);
           if (this.boss.invulnerable() && dealt === 0) this.particles(p.x, p.y, 2, 0x8888aa, 2, 0.15, 0.05, 0);
           this.sfx(Sfx.HIT);
           consumed = true;

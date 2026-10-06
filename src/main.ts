@@ -1,14 +1,24 @@
 import Phaser from 'phaser';
-import { BootScene, MenuScene, LevelSelectScene, UpgradeScene, SettingsScene, CreditsScene } from './scenes/menus';
+import { BootScene, SheetScene, MenuScene, LevelSelectScene, UpgradeScene, SettingsScene, CreditsScene } from './scenes/menus';
 import { GameScene } from './scenes/game';
 import { HUDScene } from './scenes/hud';
 import { suspendAudio } from './systems/sound';
+import { Z } from './art/pen';
+
+// All textures are drawn at Z× resolution; images/tile-sprites/text default to that density.
+{
+  const F = Phaser.GameObjects.GameObjectFactory.prototype as any;
+  const oImage = F.image, oTile = F.tileSprite, oText = F.text;
+  F.image = function (x: number, y: number, key: string, frame?: string) { return oImage.call(this, x, y, key, frame).setScale(1 / Z); };
+  F.tileSprite = function (x: number, y: number, w: number, h: number, key: string, frame?: string) { return oTile.call(this, x, y, w, h, key, frame).setTileScale(1 / Z); };
+  F.text = function (x: number, y: number, t: string, style?: any) { return oText.call(this, x, y, t, { resolution: Z, ...(style || {}) }); };
+}
 
 /** Virtual height is fixed at 540 px (11.25 world units); width follows the device aspect (16:9 … 21:9; narrower screens are letterboxed). */
 const H = 540;
 function widthFor() {
   const aspect = Math.min(2.4, Math.max(16 / 9, window.innerWidth / Math.max(1, window.innerHeight)));
-  return Math.round(H * aspect);
+  return Math.round(H * aspect) * Z;
 }
 
 const game = new Phaser.Game({
@@ -16,12 +26,12 @@ const game = new Phaser.Game({
   parent: 'game',
   backgroundColor: '#0b1020',
   width: widthFor(),
-  height: H,
+  height: H * Z,
   scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
   input: { activePointers: 5 },
   render: { antialias: true, powerPreference: 'high-performance' },
   fps: { target: 60 },
-  scene: [BootScene, MenuScene, LevelSelectScene, UpgradeScene, SettingsScene, CreditsScene, GameScene, HUDScene],
+  scene: [BootScene, SheetScene, MenuScene, LevelSelectScene, UpgradeScene, SettingsScene, CreditsScene, GameScene, HUDScene],
 });
 
 // Re-fit the virtual width when the device rotates / window resizes.
@@ -31,7 +41,7 @@ window.addEventListener('resize', () => {
   resizeTimer = window.setTimeout(() => {
     const w = widthFor();
     if (Math.abs(w - game.scale.width) > 8 && window.innerWidth > window.innerHeight) {
-      game.scale.setGameSize(w, H);
+      game.scale.setGameSize(w, H * Z);
       for (const s of game.scene.getScenes(true)) {
         if (['Menu', 'LevelSelect', 'Upgrade', 'Settings', 'Credits'].includes(s.scene.key)) s.scene.restart();
       }

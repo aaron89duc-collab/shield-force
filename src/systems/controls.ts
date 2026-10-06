@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import type { Controls } from '../game/player';
+import { Z } from '../art/pen';
 
 export const BTN = { FIRE: 0, JUMP: 1, SHIELD: 2, SMASH: 3, SPECIAL: 4 } as const;
 const LABEL = ['FIRE', 'JUMP', 'SHIELD', 'SMASH', 'SPECIAL'];
@@ -107,8 +108,9 @@ export class TouchControls implements Controls {
     return best;
   }
 
-  private down(p: Phaser.Input.Pointer) {
+  private down(ptr: Phaser.Input.Pointer) {
     if (!this.enabled) return;
+    const p = { id: ptr.id, x: ptr.x / Z, y: ptr.y / Z };
     const b = this.hit(p.x, p.y);
     if (b >= 0) { this.ptrRole.set(p.id, b); this.press(b); }
     else if ((this.mirrored ? p.x > this.W * 0.55 : p.x < this.W * 0.45) && this.joyId < 0 && p.y > 70) {
@@ -120,7 +122,8 @@ export class TouchControls implements Controls {
     this.recompute();
   }
 
-  private moveP(p: Phaser.Input.Pointer) {
+  private moveP(ptr: Phaser.Input.Pointer) {
+    const p = { id: ptr.id, x: ptr.x / Z, y: ptr.y / Z };
     const role = this.ptrRole.get(p.id);
     if (role === undefined) return;
     if (role === 99) { this.joyX = p.x; this.joyY = p.y; }
@@ -215,8 +218,11 @@ export class TouchControls implements Controls {
         g.fillStyle(COLOR[i], 0.35); g.fillCircle(x, y, r + 8 + p * 4);
         a = 0.8;
       }
+      g.fillStyle(0x000000, 0.3); g.fillCircle(x + 2, y + 4, r);
       g.fillStyle(COLOR[i], a); g.fillCircle(x, y, r);
-      g.lineStyle(3, 0xffffff, 0.6); g.strokeCircle(x, y, r);
+      g.fillStyle(0xffffff, this.pressed[i] ? 0.08 : 0.18); g.fillEllipse(x, y - r * 0.45, r * 1.3, r * 0.7);
+      g.lineStyle(3, 0x0d0f1a, 0.6); g.strokeCircle(x, y, r + 1.5);
+      g.lineStyle(2, 0xffffff, 0.55); g.strokeCircle(x, y, r - 1);
       const cd = this.cooldown[i];
       if (cd > 0) {
         g.fillStyle(0x000000, 0.4); g.fillCircle(x, y, r - 2);

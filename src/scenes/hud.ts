@@ -7,8 +7,9 @@ import { persist, save, LEVEL_COUNT } from '../systems/save';
 import { updateMusic, unlockAudio } from '../systems/sound';
 import { fmtTime } from '../game/util';
 import { LEVEL_INFO } from '../game/levels';
-import { button, Btn, FONT, FONT2, txt } from './ui';
+import { button, Btn, FONT, FONT2, initCam, txt, VH, VW } from './ui';
 import type { GameScene } from './game';
+import { lighten } from '../art/pen';
 
 interface VictoryInfo { time: number; deaths: number; coins: number; reward: number; total: number; kills: number; }
 
@@ -17,6 +18,7 @@ export class HUDScene extends Phaser.Scene {
   gs!: GameScene;
   controls!: TouchControls;
   private g!: Phaser.GameObjects.Graphics;
+  private face!: Phaser.GameObjects.Image;
   private hpT!: Phaser.GameObjects.Text;
   private coinT!: Phaser.GameObjects.Text;
   private bossT!: Phaser.GameObjects.Text;
@@ -38,8 +40,11 @@ export class HUDScene extends Phaser.Scene {
   init(data: { game: GameScene }) { this.gs = data.game; this.pauseLayer = []; this.victoryLayer = []; this.puTexts = []; }
 
   create() {
+    initCam(this);
     this.touch = this.sys.game.device.input.touch || new URLSearchParams(location.search).has('touch');
+    this.add.image(0, 0, 'vignette').setOrigin(0).setDisplaySize(VW(this), VH(this)).setAlpha(0.55).setDepth(0);
     this.g = this.add.graphics().setDepth(5);
+    this.face = this.add.image(0, 0, 'heroHead').setDisplaySize(38, 46).setDepth(6);
     const st = (size: number, color = '#ffffff') => ({ fontFamily: FONT, fontSize: `${size}px`, color, stroke: '#000000', strokeThickness: 4 });
     this.hpT = this.add.text(0, 0, '', st(14)).setDepth(6);
     this.coinT = this.add.text(0, 0, '', st(18, '#f2c94c')).setDepth(6);
@@ -70,7 +75,7 @@ export class HUDScene extends Phaser.Scene {
   }
 
   private relayout() {
-    const W = this.scale.width, H = this.scale.height;
+    const W = VW(this), H = VH(this);
     const ins = safeInsets();
     const k = H / Math.max(1, window.innerHeight);
     this.insetL = Math.min(60, ins.left * k + 8); this.insetR = Math.min(60, ins.right * k + 8); this.insetT = ins.top * k;
@@ -87,7 +92,7 @@ export class HUDScene extends Phaser.Scene {
   update(time: number, delta: number) {
     const w = this.gs.world;
     if (!w) return;
-    const W = this.scale.width, H = this.scale.height, p = w.player;
+    const W = VW(this), H = VH(this), p = w.player;
     const g = this.g;
     g.clear();
 
@@ -100,19 +105,26 @@ export class HUDScene extends Phaser.Scene {
     }
 
     // HP + ultimate
-    const x0 = this.insetL + 12, y0 = 14;
-    g.fillStyle(0x000000, 0.55); g.fillRoundedRect(x0 - 6, y0 - 6, 262, 64, 8);
+    const x0 = this.insetL + 12, y0 = 14, bx0 = x0 + 62, bw0 = 200;
+    g.fillStyle(0x000000, 0.5); g.fillRoundedRect(x0 - 6, y0 - 8, bw0 + 82, 62, 12);
+    g.lineStyle(2, 0x1fb59b, 0.6); g.strokeRoundedRect(x0 - 6, y0 - 8, bw0 + 82, 62, 12);
+    // portrait frame
+    const hurtFlash = p.hurtT > 0 || p.dead;
+    g.fillStyle(hurtFlash ? 0xe84a3b : 0x1fb59b); g.fillCircle(x0 + 24, y0 + 22, 27);
+    g.fillStyle(0x0d1630); g.fillCircle(x0 + 24, y0 + 22, 24);
+    this.face.setPosition(x0 + 24, y0 + 24).setTint(hurtFlash ? 0xff8080 : 0xffffff);
     const hpf = Math.max(0, p.hp / p.maxHp);
-    g.fillStyle(0x3a1010); g.fillRect(x0 + 36, y0, 210, 18);
-    g.fillStyle(hpf > 0.5 ? 0x3bd67b : hpf > 0.25 ? 0xf2c94c : 0xe84a3b); g.fillRect(x0 + 36, y0, 210 * hpf, 18);
-    g.lineStyle(2, 0xffffff, 0.7); g.strokeRect(x0 + 36, y0, 210, 18);
-    this.hpT.setText(`HP ${Math.max(0, Math.ceil(p.hp))}`).setPosition(x0 + 40, y0 + 1);
-    g.fillStyle(0x1a1030); g.fillRect(x0 + 36, y0 + 26, 210, 12);
+    const hpc = hpf > 0.5 ? 0x3bd67b : hpf > 0.25 ? 0xf2c94c : 0xe84a3b;
+    g.fillStyle(0x2a0c10); g.fillRoundedRect(bx0, y0, bw0, 18, 5);
+    if (hpf > 0) { g.fillGradientStyle(lighten(hpc, 0.35), lighten(hpc, 0.35), hpc, hpc, 1); g.fillRoundedRect(bx0, y0, Math.max(10, bw0 * hpf), 18, 5); }
+    g.fillStyle(0x000000, 0.35); for (let k = 1; k < 10; k++) g.fillRect(bx0 + k * bw0 / 10, y0 + 2, 1.5, 14);
+    g.lineStyle(2, 0x0d0f1a, 1); g.strokeRoundedRect(bx0, y0, bw0, 18, 5);
+    this.hpT.setText(`${Math.max(0, Math.ceil(p.hp))}/${p.maxHp}`).setPosition(bx0 + 6, y0 + 1);
     const uf = p.ult / 100;
-    g.fillStyle(uf >= 1 ? (Math.floor(time / 120) % 2 ? 0xe0a0ff : 0xb04be8) : 0x8a3bc8); g.fillRect(x0 + 36, y0 + 26, 210 * uf, 12);
-    g.lineStyle(2, 0xffffff, 0.6); g.strokeRect(x0 + 36, y0 + 26, 210, 12);
-    drawIcon(g, x0 + 14, y0 + 9, 0x3bd67b); drawIcon(g, x0 + 14, y0 + 32, 0xb04be8);
-    this.coinT.setText(`💰 ${save.coins + (w.rewarded ? 0 : w.coinsEarned)}`).setPosition(x0, y0 + 64);
+    g.fillStyle(0x140a24); g.fillRoundedRect(bx0, y0 + 25, bw0, 12, 4);
+    if (uf > 0) { const uc = uf >= 1 ? (Math.floor(time / 120) % 2 ? 0xf0c0ff : 0xc06cff) : 0x9a4be8; g.fillGradientStyle(lighten(uc, 0.4), lighten(uc, 0.4), uc, uc, 1); g.fillRoundedRect(bx0, y0 + 25, Math.max(8, bw0 * uf), 12, 4); }
+    g.lineStyle(2, 0x0d0f1a, 1); g.strokeRoundedRect(bx0, y0 + 25, bw0, 12, 4);
+    this.coinT.setText(`💰 ${save.coins + (w.rewarded ? 0 : w.coinsEarned)}`).setPosition(x0, y0 + 60);
 
     // power-ups
     const pus: [PU, number][] = [];
@@ -125,7 +137,7 @@ export class HUDScene extends Phaser.Scene {
       const tt = this.puTexts[i];
       if (i < pus.length) {
         const [type, tm] = pus[i];
-        const px = x0 + 280 + i * 62, py = y0 + 14;
+        const px = x0 + 310 + i * 62, py = y0 + 14;
         g.fillStyle(PU_COLOR[type], 0.9); g.fillRoundedRect(px - 14, py - 14, 28, 28, 8);
         tt.setText(`${PU_LETTER[type]} ${Math.ceil(tm)}`).setPosition(px - 10, py - 8).setVisible(true);
       } else tt.setVisible(false);
@@ -190,12 +202,13 @@ export class HUDScene extends Phaser.Scene {
     this.controls?.reset();
     if (!show) return;
     this.controls.setVisible(false);
-    const W = this.scale.width, H = this.scale.height;
+    const W = VW(this), H = VH(this);
     const L = this.pauseLayer;
     L.push(this.add.rectangle(0, 0, W, H, 0x000000, 0.7).setOrigin(0).setDepth(40).setInteractive());
     L.push(txt(this, W / 2, 70, 'TẠM DỪNG', 40).setDepth(41));
     L.push(txt(this, W / 2, 112, `Màn ${this.gs.levelNum}: ${LEVEL_INFO[this.gs.levelNum - 1].name}`, 16, '#9fe8dc', false).setDepth(41));
     const add = (b: Btn) => { b.box.setDepth(41); b.label.setDepth(42); L.push(b.box, b.label); return b; };
+    L.push(this.add.image(W - 150, H - 20, 'hero_portrait').setOrigin(52 / 112, 122 / 128).setScale(0.32).setDepth(41));
     add(button(this, W / 2, 170, 320, 50, '▶ TIẾP TỤC', () => this.gs.setPaused(false), 0x2bb3a0));
     add(button(this, W / 2, 230, 320, 46, 'CHƠI LẠI TỪ CHECKPOINT', () => { this.gs.world.restartFromCheckpoint(); this.gs.setPaused(false); }, 0x2b6fb3, 18));
     const sb = add(button(this, W / 2 - 82, 290, 156, 46, '', () => { save.soundEnabled = !save.soundEnabled; persist(); sb.setText(`Âm thanh: ${save.soundEnabled ? 'BẬT' : 'TẮT'}`); }, 0x5a5f78, 15));
@@ -214,7 +227,7 @@ export class HUDScene extends Phaser.Scene {
   // ------------------------------------------------------------------ victory
   showVictory(v: VictoryInfo) {
     this.controls.setVisible(false);
-    const W = this.scale.width, H = this.scale.height;
+    const W = VW(this), H = VH(this);
     const L = this.victoryLayer;
     L.push(this.add.rectangle(0, 0, W, H, 0x000000, 0.65).setOrigin(0).setDepth(40).setInteractive());
     L.push(txt(this, W / 2, 70, 'HOÀN THÀNH MÀN!', 44, '#f2c94c').setDepth(41));

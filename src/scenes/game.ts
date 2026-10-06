@@ -6,10 +6,13 @@ import { BS } from '../game/boss';
 import { PState, Controls } from '../game/player';
 import { GROUND_Y } from '../game/level';
 import { PPU, rndr } from '../game/util';
-import { drawTerrain, ensureBackgrounds, THEMES } from '../art/themes';
+import { drawTerrain, ensureBackgrounds, releaseBackgrounds, THEMES } from '../art/themes';
+import { HERO_FX, HERO_FY, HERO_H, HERO_W } from '../art/textures';
 import { persist, save, LEVEL_COUNT } from '../systems/save';
 import { Bot } from './bot';
 import type { HUDScene } from './hud';
+import { initCam, VH, VW } from './ui';
+import { Z } from '../art/pen';
 
 const PR_TEX: Record<number, string> = {
   [PK.SHOT]: 'pr_shot', [PK.BULLET]: 'pr_bullet', [PK.PLASMA]: 'pr_plasma', [PK.FIRE]: 'pr_fire', [PK.ICE]: 'pr_ice',
@@ -26,8 +29,13 @@ export class GameScene extends Phaser.Scene {
   paused = false;
   private acc = 0;
   private speed = 1; // test-only time scale (?speed=N with ?bot)
-  private sky!: Phaser.GameObjects.Graphics;
+  private sky!: Phaser.GameObjects.Image;
   private far!: Phaser.GameObjects.TileSprite;
+  private mid!: Phaser.GameObjects.TileSprite;
+  private fxAdd!: Phaser.GameObjects.Graphics;
+  private flash!: Phaser.GameObjects.Image;
+  private fxPool: Phaser.GameObjects.Image[] = [];
+  private wasGround = true;
   private near!: Phaser.GameObjects.TileSprite;
   private fxBack!: Phaser.GameObjects.Graphics;
   private fxFront!: Phaser.GameObjects.Graphics;
@@ -54,7 +62,8 @@ export class GameScene extends Phaser.Scene {
   }
 
   create() {
-    const W = this.scale.width, H = this.scale.height;
+    initCam(this);
+    const W = VW(this), H = VH(this);
     const world = this.world = new World(this.levelNum);
     world.viewW = W / PPU;
     const q = new URLSearchParams(location.search);
@@ -62,12 +71,14 @@ export class GameScene extends Phaser.Scene {
     if (q.has('x') && (q.has('bot') || q.has('dev'))) { world.player.x = Number(q.get('x')); world.player.y = world.groundTopAt(world.player.x) - world.player.h - 0.5; }
     if (q.has('bot')) { this.bot = new Bot(world); this.speed = Math.min(16, Math.max(1, Number(q.get('speed')) || 1)); }
     const th = THEMES[world.level.theme];
-    const { farKey, nearKey } = ensureBackgrounds(this, world.level.theme);
+    void th;
+    releaseBackgrounds(this, [0, world.level.theme]);
+    const { skyKey, farKey, midKey, nearKey } = ensureBackgrounds(this, world.level.theme);
 
-    this.sky = this.add.graphics().setScrollFactor(0).setDepth(-10);
-    this.drawSky(W, H, th.skyTop, th.skyBot);
-    this.far = this.add.tileSprite(0, 0, W, H, farKey).setOrigin(0).setScrollFactor(0).setDepth(-9);
-    this.near = this.add.tileSprite(0, 0, W, H, nearKey).setOrigin(0).setScrollFactor(0).setDepth(-8);
+    this.sky = this.add.image(0, 0, skyKey).setOrigin(0).setScrollFactor(0).setDepth(-10).setDisplaySize(W, H);
+    this.far = this.add.tileSprite(0, 0, W, H, farKey).setOrigin(0).setScrollFactor(0).setDepth(-9).setTileScale(1);
+    this.mid = this.add.tileSprite(0, 0, W, H, midKey).setOrigin(0).setScrollFactor(0).setDepth(-8.5).setTileScale(1).setAlpha(0.95);
+    this.near = this.add.tileSprite(0, 0, W, H, nearKey).setOrigin(0).setScrollFactor(0).setDepth(-8).setTileScale(1);
 
     this.fxBack = this.add.graphics().setDepth(0);
     this.bakeTerrain();
@@ -85,10 +96,13 @@ export class GameScene extends Phaser.Scene {
       if (key) this.hazardSpr.set(h, this.add.image(h.x * PPU, h.y * PPU, key).setOrigin(0).setDisplaySize(h.w * PPU, key === 'crusher' ? 1.3 * PPU : h.h * PPU).setDepth(3));
     }
 
-    this.playerSpr = this.add.image(0, 0, 'hero_idle').setOrigin(34 / 72, 79 / 82).setDepth(10);
+    this.playerSpr = this.add.image(0, 0, 'hero_idle').setOrigin(HERO_FX / HERO_W, HERO_FY / HERO_H).setDepth(10);
     this.shieldSpr = this.add.image(0, 0, 'shield').setDepth(11).setVisible(false);
     for (let i = 0; i < world.projs.length; i++) this.projSpr.push(this.add.image(0, 0, 'pr_shot').setVisible(false).setDepth(12));
     this.fxFront = this.add.graphics().setDepth(15);
+    this.fxAdd = this.add.graphics().setDepth(16).setBlendMode(Phaser.BlendModes.ADD);
+    this.flash = this.add.image(0, 0, 'flash').setDepth(13).setBlendMode(Phaser.BlendModes.ADD).setVisible(false);
+    this.fxPool = [];
 
     world.snapCamera();
     this.cameras.main.setRoundPixels(false);
@@ -108,8 +122,9 @@ export class GameScene extends Phaser.Scene {
     for (const s of this.world.solids) { minX = Math.min(minX, s.x); maxX = Math.max(maxX, s.x + s.w); }
     const y0 = -4 * PPU, hh = Math.ceil(13 * PPU - y0), CW = 1024;
     for (let x = Math.floor(minX * PPU); x < maxX * PPU; x += CW) {
-      const rt = this.add.renderTexture(x, y0, CW, hh).setOrigin(0).setDepth(1);
-      rt.draw(g, -x, -y0);
+      const rt = this.add.renderTexture(x, y0, CW * Z, hh * Z).setOrigin(0).setDepth(1).setScale(1 / Z);
+      g.setScale(Z);
+      rt.draw(g, -x * Z, -y0 * Z);
       this.chunks.push(rt);
     }
     g.destroy();
@@ -121,17 +136,19 @@ export class GameScene extends Phaser.Scene {
   }
 
   private onResize(size: Phaser.Structs.Size) {
-    const W = size.width, H = size.height;
+    const W = size.width / Z, H = size.height / Z;
     this.world.viewW = W / PPU;
-    this.far.setSize(W, H); this.near.setSize(W, H);
-    const th = THEMES[this.world.level.theme];
-    this.drawSky(W, H, th.skyTop, th.skyBot);
+    this.far.setSize(W, H); this.mid.setSize(W, H); this.near.setSize(W, H);
+    this.sky.setDisplaySize(W, H);
   }
 
-  private drawSky(W: number, H: number, top: number, bot: number) {
-    this.sky.clear();
-    this.sky.fillGradientStyle(top, top, bot, bot, 1);
-    this.sky.fillRect(0, 0, W, H);
+  /** One-shot additive sprite effect (explosion ring / glow burst). */
+  private burst(key: string, x: number, y: number, s0: number, s1: number, dur: number, tint = 0xffffff, alpha = 1) {
+    let img = this.fxPool.find(i => !i.visible);
+    if (!img) { img = this.add.image(0, 0, key).setBlendMode(Phaser.BlendModes.ADD).setDepth(14); this.fxPool.push(img); }
+    img.setTexture(key).setVisible(true).setPosition(x, y).setScale(s0 / Z).setAlpha(alpha).setTint(tint);
+    this.tweens.killTweensOf(img);
+    this.tweens.add({ targets: img, scale: s1 / Z, alpha: 0, duration: dur, ease: 'Cubic.out', onComplete: () => img!.setVisible(false) });
   }
 
   controls(): Controls { return this.bot ?? this.hud.controls; }
@@ -173,15 +190,23 @@ export class GameScene extends Phaser.Scene {
     let sx = 0, sy = 0;
     if (w.shakeT > 0 && !this.paused) { sx = rndr(-1, 1) * w.shakeMag * PPU * 0.5; sy = rndr(-1, 1) * w.shakeMag * PPU * 0.5; }
     cam.setScroll(w.camX * PPU + sx, w.camY * PPU + sy);
-    this.far.tilePositionX = w.camX * PPU * 0.15;
-    this.near.tilePositionX = w.camX * PPU * 0.4;
-    this.near.tilePositionY = (w.camY - (12 - VIEW_H)) * PPU * 0.2;
-    this.far.tilePositionY = (w.camY - (12 - VIEW_H)) * PPU * 0.08;
+    const dy = (w.camY - (12 - VIEW_H)) * PPU;
+    this.far.tilePositionX = w.camX * PPU * 0.1; this.far.tilePositionY = dy * 0.05;
+    this.mid.tilePositionX = w.camX * PPU * 0.22; this.mid.tilePositionY = dy * 0.1;
+    this.near.tilePositionX = w.camX * PPU * 0.4; this.near.tilePositionY = dy * 0.2;
+    // world fx events (explosions etc.)
+    while (w.fx.length) {
+      const f = w.fx.shift()!;
+      if (f.k === 'boom') { this.burst('glow', f.x * PPU, f.y * PPU, 0.6 * f.s, 3.2 * f.s, 380, 0xffb050); this.burst('ring', f.x * PPU, f.y * PPU, 0.3 * f.s, 2.6 * f.s, 420, 0xffd890, 0.9); }
+      else if (f.k === 'hit') this.burst('spark', f.x * PPU, f.y * PPU, 0.8, 2.2, 160, 0xffffff);
+      else if (f.k === 'ult') { this.burst('ring', f.x * PPU, f.y * PPU, 0.5, 14, 600, 0xd0a0ff); this.burst('glow', f.x * PPU, f.y * PPU, 1, 12, 500, 0xc98cff); }
+      else if (f.k === 'perfect') this.burst('ring', f.x * PPU, f.y * PPU, 0.3, 2.4, 300, 0x7fffe0);
+    }
 
     const vx0 = w.camX * PPU - 64, vx1 = (w.camX + w.viewW) * PPU + 64;
-    for (const c of this.chunks) c.setVisible(c.x < vx1 && c.x + c.width > vx0);
-    const fb = this.fxBack, ff = this.fxFront;
-    fb.clear(); ff.clear();
+    for (const c of this.chunks) c.setVisible(c.x < vx1 && c.x + c.displayWidth > vx0);
+    const fb = this.fxBack, ff = this.fxFront, fa = this.fxAdd;
+    fb.clear(); ff.clear(); fa.clear();
     const t = w.time;
     this.drawLava(fb, t);
     this.drawHazards(fb, ff, t);
@@ -193,13 +218,25 @@ export class GameScene extends Phaser.Scene {
     this.renderProjs();
     this.renderPickups();
     this.renderWarnings(ff, t);
-    // particles
+    // particles: bright ones glow additively, dull ones (smoke/dust/debris) draw normally
     for (const p of w.particlesArr) {
       if (!p.active) continue;
       const a = Math.min(1, p.life / p.max * 1.5);
       const s = p.size * PPU;
-      ff.fillStyle(p.color, a);
-      ff.fillRect(p.x * PPU - s / 2, p.y * PPU - s / 2, s, s);
+      const c = p.color, lum = (((c >> 16) & 255) * 3 + ((c >> 8) & 255) * 6 + (c & 255)) / 10;
+      const sat = Math.max((c >> 16) & 255, (c >> 8) & 255, c & 255) - Math.min((c >> 16) & 255, (c >> 8) & 255, c & 255);
+      if (lum > 150 || sat > 120) {
+        fa.fillStyle(c, a * 0.35); fa.fillCircle(p.x * PPU, p.y * PPU, s * 1.3);
+        fa.fillStyle(c, a); fa.fillRect(p.x * PPU - s / 2, p.y * PPU - s / 2, s, s);
+      } else {
+        ff.fillStyle(c, a * 0.85); ff.fillCircle(p.x * PPU, p.y * PPU, s * 0.6);
+      }
+    }
+    // projectile glows
+    for (const p of w.projs) {
+      if (!p.active || p.kind === PK.PILLAR || p.kind === PK.EGG || p.kind === PK.WAVE) continue;
+      const col = p.team === 0 ? (p.kind === PK.REFLECT ? 0x7fffe0 : 0x5fd8ff) : p.kind === PK.LASER ? 0xff2e5a : p.kind === PK.ACID || p.kind === PK.PLASMA ? 0x9cff4a : 0xff8a2e;
+      fa.fillStyle(col, 0.18); fa.fillCircle(p.x * PPU, p.y * PPU, p.kind === PK.LAVAWAVE ? 60 : 16);
     }
   }
 
@@ -223,6 +260,15 @@ export class GameScene extends Phaser.Scene {
     spr.setTexture((w.shield.active ? 'heroNS_' : 'hero_') + f);
     spr.setFlipX(p.facing < 0);
     spr.setPosition(p.cx() * PPU, (p.y + p.h) * PPU);
+    if (p.shootT > 0.14 && !w.shield.active) {
+      const m = p.muzzle();
+      this.flash.setVisible(true).setPosition(m.x * PPU + p.facing * 6, m.y * PPU).setRotation(Math.random() * 6).setScale((0.7 + Math.random() * 0.4) / Z);
+    } else if (p.shootT > 0.14) {
+      const m = p.muzzle();
+      this.flash.setVisible(true).setPosition(m.x * PPU, m.y * PPU).setScale(0.5 / Z);
+    } else this.flash.setVisible(false);
+    if (p.onGround && !this.wasGround) w.particles(p.cx(), p.y + p.h, 8, 0x8a8478, 2.5, 0.35, 0.14, -1);
+    this.wasGround = p.onGround;
     spr.setAlpha(p.invuln > 0 && Math.floor(w.time * 20) % 2 ? 0.35 : 1);
     if (p.superT > 0) spr.setTint(Math.floor(w.time * 10) % 2 ? 0xffd0c0 : 0xffffff); else spr.clearTint();
     // aura for power-ups
@@ -272,6 +318,7 @@ export class GameScene extends Phaser.Scene {
       else if (e.state === S.STUN) spr.setTint(0x9090ff);
       else spr.clearTint();
       if (e.minion) { fb.fillStyle(0xff2e5a, 0.15); fb.fillCircle(e.cx() * PPU, e.cy() * PPU, e.w * PPU); }
+      if (e.onGround) { fb.fillStyle(0x000000, 0.25); fb.fillEllipse(e.cx() * PPU, (e.y + e.h) * PPU, e.w * PPU * 1.1, 7); }
       // hp pip for tough enemies
       if (e.hp < e.maxHp && e.maxHp >= 45) {
         const bw = e.w * PPU;
@@ -305,7 +352,8 @@ export class GameScene extends Phaser.Scene {
     else if (b.state === BS.TELE && Math.floor(b.t * 14) % 2) spr.setTint(0xff7070);
     else if (b.state === BS.RECOVER && b.stun > 1.3) spr.setTint(0xa0a0ff);
     else spr.clearTint();
-    if (b.state === BS.INTRO) spr.setScale(Math.min(1, 0.6 + b.t * 0.4)); else spr.setScale(1);
+    if (b.state === BS.INTRO) spr.setScale(Math.min(1, 0.6 + b.t * 0.4) / Z); else spr.setScale(1 / Z);
+    if (!b.type.flying && !b.hidden) { this.fxBack.fillStyle(0x000000, 0.3); this.fxBack.fillEllipse(b.cx() * PPU, (b.y + b.h) * PPU, b.w * PPU * 1.1, 12); }
     if (b.weakOpen > 0) { ff.lineStyle(3, 0xffe04a, 0.5 + 0.5 * Math.sin(w.time * 20)); ff.strokeCircle((b.facing > 0 ? b.x + b.w * 0.95 : b.x + b.w * 0.05) * PPU, (b.y + b.h * 0.5) * PPU, 26); }
     if (b.type.key === 'overlord' && b.state !== BS.INTRO) {
       ff.fillStyle(0xff2e5a, 0.4 + 0.3 * Math.sin(w.time * 8)); ff.fillCircle(b.cx() * PPU, b.coreY() * PPU, 18);
@@ -331,9 +379,9 @@ export class GameScene extends Phaser.Scene {
       if (ROTATE.has(p.kind)) { s.setRotation(Math.atan2(p.vy, p.vx)); s.setFlipX(false); }
       else if (p.kind === PK.FIRE || p.kind === PK.ROCK || p.kind === PK.WEB || p.kind === PK.SAND || p.kind === PK.ACID) s.setRotation(p.age * 8);
       else { s.setRotation(0); s.setFlipX(p.vx < 0); }
-      if (p.kind === PK.EGG) s.setScale(1 + Math.sin(p.age * 14) * 0.05 * Math.max(0, 2.4 - p.life));
-      else if (p.kind === PK.PILLAR) s.setScale(1, Math.min(1, p.age * 8));
-      else s.setScale(1);
+      if (p.kind === PK.EGG) s.setScale((1 + Math.sin(p.age * 14) * 0.05 * Math.max(0, 2.4 - p.life)) / Z);
+      else if (p.kind === PK.PILLAR) s.setScale(1 / Z, Math.min(1, p.age * 8) / Z);
+      else s.setScale(1 / Z);
     }
   }
 
@@ -346,7 +394,8 @@ export class GameScene extends Phaser.Scene {
       const bob = k.floating ? Math.sin(k.t * 3) * 0.12 : 0;
       s.setPosition(k.x * PPU, (k.y + bob) * PPU);
       s.setAlpha(!k.floating && k.life < 3 && Math.floor(k.t * 10) % 2 ? 0.3 : 1);
-      if (k.type === 7) s.setScale(Math.abs(Math.cos(k.t * 4)) * 0.8 + 0.2, 1);
+      if (k.type === 7) s.setScale((Math.abs(Math.cos(k.t * 4)) * 0.8 + 0.2) / Z, 1 / Z);
+      else { this.fxAdd.fillStyle(0xffffff, 0.12 + 0.06 * Math.sin(k.t * 6)); this.fxAdd.fillCircle(k.x * PPU, (k.y + bob) * PPU, 22); }
     }
     if (this.pickupSpr.size > 80) for (const [k, s] of this.pickupSpr) if (!(k as any).active) { s.destroy(); this.pickupSpr.delete(k); }
   }

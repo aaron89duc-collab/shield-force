@@ -13,7 +13,7 @@ export interface Controls {
 
 export enum PState { Idle, Run, Jump, Fall, Crouch, Shoot, ShieldThrow, Block, Dash, Hurt, Dead, Respawn, Victory }
 
-const STAND_H = 1.45, CROUCH_H = 1.0;
+const STAND_H = 1.75, CROUCH_H = 1.2;
 export const JUMP_V = 11;
 
 /** Player (GDD §3). Movement/state only — shooting & shield are spawned through World/ShieldController. */
@@ -36,7 +36,7 @@ export class Player extends Body {
 
   constructor(x: number, y: number) {
     super();
-    this.w = 0.7; this.h = STAND_H;
+    this.w = 0.8; this.h = STAND_H;
     this.x = x; this.y = y - this.h;
     this.maxHp = this.hp = stats.maxHp();
     this.safeX = this.x; this.safeY = this.y;
@@ -166,8 +166,8 @@ export class Player extends Body {
     if (this.aimUp === 2) ang = -Math.PI / 2;
     else if (this.aimUp === 1) ang = this.facing > 0 ? -Math.PI / 4 : -Math.PI * 3 / 4;
     else ang = this.facing > 0 ? 0 : Math.PI;
-    const mx = this.aimUp === 2 ? this.cx() + this.facing * 0.15 : this.cx() + this.facing * 0.55;
-    const my = this.aimUp === 2 ? this.y - 0.1 : this.y + (this.crouch ? 0.45 : 0.55);
+    const m = this.muzzle();
+    const mx = m.x, my = m.y;
     const speed = 18;
     const shots: number[] = mode === 2 ? [-0.22, 0, 0.22] : [0];
     const offs: number[] = mode === 1 ? [-0.16, 0.16] : [0];
@@ -179,6 +179,14 @@ export class Player extends Body {
       if (pr && mode > 0) pr.bossMul = 0.5;
     }
     W.sfx(Sfx.SHOT);
+  }
+
+  /** Where shots leave the shield (matches the sprite's arm poses). */
+  muzzle() {
+    const b = this.y + this.h;
+    if (this.aimUp === 2) return { x: this.cx() + this.facing * 0.37, y: b - 1.95 };
+    if (this.aimUp === 1) return { x: this.cx() + this.facing * 0.6, y: b - 1.75 };
+    return { x: this.cx() + this.facing * 0.82, y: b - (this.crouch ? 0.8 : 1.08) };
   }
 
   /** Respawn helper. */
@@ -211,7 +219,7 @@ export class Shield {
     this.active = true; this.state = 'out'; this.t = 0; this.dist = 0; this.bounces = 0; this.exploded = false;
     this.ricochet = up;
     this.stamp++;
-    this.x = p.cx() + p.facing * 0.4; this.y = p.y + 0.6;
+    this.x = p.cx() + p.facing * 0.5; this.y = p.y + p.h - 1.1;
     const sp = 17;
     if (up) { this.vx = p.facing * sp * 0.707; this.vy = -sp * 0.707; }
     else { this.vx = p.facing * sp; this.vy = 0; }
@@ -241,7 +249,7 @@ export class Shield {
       }
       if (this.dist >= (this.ricochet ? 14 : 8.5)) this.goBack();
     } else {
-      const dx = p.cx() - this.x, dy = p.y + 0.6 - this.y;
+      const dx = p.cx() - this.x, dy = p.y + p.h - 1.1 - this.y;
       const d = Math.hypot(dx, dy);
       const sp = Math.min(24, 14 + this.t * 6);
       this.vx = approach(this.vx, dx / Math.max(d, 0.001) * sp, 90 * dt);

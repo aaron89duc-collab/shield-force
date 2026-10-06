@@ -204,7 +204,7 @@ export class Boss extends Body {
         break;
       }
       case A.LASER: {
-        this.laserY = rnd() < 0.5 ? GROUND_Y - 0.45 : GROUND_Y - 1.25;
+        this.laserY = rnd() < 0.5 ? GROUND_Y - 0.45 : GROUND_Y - 1.5;
         W.addWarn(ax, this.laserY - 0.05, 20, 0.1, 0.85, 1);
         break;
       }
