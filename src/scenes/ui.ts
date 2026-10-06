@@ -9,8 +9,9 @@ export const VW = (s: Phaser.Scene) => s.scale.width / Z;
 export const VH = (s: Phaser.Scene) => s.scale.height / Z;
 export function initCam(s: Phaser.Scene) { s.cameras.main.setOrigin(0, 0).setZoom(Z); }
 
-export const FONT = 'Arial Black, Arial, Helvetica, sans-serif';
-export const FONT2 = 'Arial, Helvetica, sans-serif';
+import { FONT_BODY, FONT_TITLE } from '../fonts';
+export const FONT = FONT_TITLE;
+export const FONT2 = FONT_BODY;
 
 export function txt(scene: Phaser.Scene, x: number, y: number, s: string, size: number, color = '#ffffff', bold = true) {
   return scene.add.text(x, y, s, {

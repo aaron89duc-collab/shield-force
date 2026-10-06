@@ -320,7 +320,7 @@ export function buildTextures(scene: Phaser.Scene) {
         g.fillStyle(darken(PU_COLOR[i], 0.7)); g.fillRoundedRect(5, 8, 34, 28, 13);
         g.fillStyle(PU_COLOR[i]); g.fillRoundedRect(7, 10, 30, 24, 11);
         g.flat(() => { g.fillStyle(0xffffff, 0.45); g.fillRoundedRect(11, 12, 22, 6, 3); });
-        const c = g.ctx; c.font = 'bold 19px Arial Black, Arial, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
+        const c = g.ctx; c.font = "800 22px 'Baloo 2'"; c.textAlign = 'center'; c.textBaseline = 'middle';
         c.lineWidth = 3.5; c.strokeStyle = 'rgba(13,15,26,0.9)'; c.strokeText(PU_LETTER[i], 22, 23.5);
         c.fillStyle = '#ffffff'; c.fillText(PU_LETTER[i], 22, 23.5);
       }
@@ -372,7 +372,7 @@ export function buildTextures(scene: Phaser.Scene) {
     const c = g.ctx;
     c.textAlign = 'center'; c.textBaseline = 'middle'; c.lineJoin = 'round';
     // line 1: ĐẬU ĐẬU
-    c.font = '900 84px Arial Black, Arial, sans-serif';
+    c.font = "800 96px 'Baloo 2'";
     c.fillStyle = 'rgba(0,0,0,0.55)'; c.fillText('ĐẬU ĐẬU', 304, 72);
     c.lineWidth = 16; c.strokeStyle = '#0d0f1a'; c.strokeText('ĐẬU ĐẬU', 300, 64);
     c.lineWidth = 7; c.strokeStyle = '#1fb59b'; c.strokeText('ĐẬU ĐẬU', 300, 64);
@@ -387,7 +387,7 @@ export function buildTextures(scene: Phaser.Scene) {
     const rg = c.createLinearGradient(0, ry - 22, 0, ry + 22); rg.addColorStop(0, '#e8503a'); rg.addColorStop(1, '#9a1e1e');
     c.fillStyle = rg; c.beginPath(); c.moveTo(96, ry - 22); c.lineTo(504, ry - 22); c.lineTo(522, ry); c.lineTo(504, ry + 22); c.lineTo(96, ry + 22); c.lineTo(78, ry); c.closePath(); c.fill();
     c.fillStyle = 'rgba(255,255,255,0.25)'; c.fillRect(100, ry - 20, 400, 7);
-    c.font = '900 32px Arial Black, Arial, sans-serif'; c.lineWidth = 6; c.strokeStyle = '#3a0a0a'; c.strokeText('ĐỘI TRƯỞNG MỸ', 300, ry + 1);
+    c.font = "800 36px 'Baloo 2'"; c.lineWidth = 6; c.strokeStyle = '#3a0a0a'; c.strokeText('ĐỘI TRƯỞNG MỸ', 300, ry + 1);
     c.fillStyle = '#ffffff'; c.fillText('ĐỘI TRƯỞNG MỸ', 300, ry + 1);
     for (const sx of [116, 484]) { c.fillStyle = '#ffe28a'; c.beginPath(); for (let i = 0; i < 10; i++) { const r = i % 2 ? 4 : 9, a = -Math.PI / 2 + i * Math.PI / 5; c.lineTo(sx + Math.cos(a) * r, ry + Math.sin(a) * r); } c.closePath(); c.fill(); }
   }, { shade: 0 });

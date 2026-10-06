@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import type { Controls } from '../game/player';
 import { Z } from '../art/pen';
+import { FONT_TITLE } from '../fonts';
 
 export const BTN = { FIRE: 0, JUMP: 1, SHIELD: 2, SMASH: 3, SPECIAL: 4 } as const;
 const LABEL = ['FIRE', 'JUMP', 'SHIELD', 'SMASH', 'SPECIAL'];
@@ -46,7 +47,7 @@ export class TouchControls implements Controls {
   constructor(private scene: Phaser.Scene) {
     this.gfx = scene.add.graphics().setDepth(50);
     for (let i = 0; i < 5; i++) {
-      this.labels.push(scene.add.text(0, 0, LABEL[i], { fontFamily: 'Arial Black, Arial, sans-serif', fontSize: i < 2 ? '19px' : '14px', color: '#ffffff' }).setOrigin(0.5).setDepth(51).setAlpha(0.95));
+      this.labels.push(scene.add.text(0, 0, LABEL[i], { fontFamily: FONT_TITLE, fontSize: i < 2 ? '20px' : '15px', color: '#ffffff', stroke: '#0d0f1a', strokeThickness: 3 }).setOrigin(0.5).setDepth(51).setAlpha(0.95));
     }
     const inp = scene.input;
     inp.addPointer(4);

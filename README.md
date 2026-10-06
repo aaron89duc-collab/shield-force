@@ -41,7 +41,8 @@ Trên Android: mở link bằng Chrome → menu ⋮ → *Thêm vào màn hình c
 
 | Cảm ứng | Bàn phím | Hành động |
 |---|---|---|
-| Joystick trái | ← → / A D | Di chuyển; kéo xuống = ngồi; kéo lên = ngắm lên/chéo |
+| Joystick trái | ← → / A D | Di chuyển; kéo xuống = ngồi (bắn thấp); kéo chéo xuống = bắn chéo xuống; kéo lên = ngắm lên/chéo |
+| (tự động) | | Ngắm hỗ trợ: đạn và khiên tự nghiêng xuống quái thấp (chuột, bọ, nhện, bò cạp) phía trước |
 | FIRE (giữ) | J / X | Shield Shot liên tục |
 | JUMP | K / Space / Z | Nhảy, nhấn lần 2 trên không = nhảy đôi; ngồi + JUMP trên bục = xuống bục |
 | SHIELD chạm nhanh | L / C | Ném khiên (boomerang). Kéo lên + SHIELD = khiên nảy (ricochet) |

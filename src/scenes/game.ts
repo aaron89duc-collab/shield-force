@@ -250,15 +250,15 @@ export class GameScene extends Phaser.Scene {
     if (p.dead) { this.shieldSpr.setVisible(false); return; }
     let f = 'idle';
     switch (p.state) {
-      case PState.Run: f = p.aimUp ? 'up' : 'run' + (Math.floor(p.anim * 11) % 4); break;
-      case PState.Jump: f = p.aimUp ? 'up' : 'jump'; break;
-      case PState.Fall: f = p.aimUp ? 'up' : 'fall'; break;
+      case PState.Run: f = p.aimUp > 0 ? 'up' : p.aimUp < 0 ? 'shootdown' : 'run' + (Math.floor(p.anim * 11) % 6); break;
+      case PState.Jump: f = p.aimUp > 0 ? 'up' : p.aimUp < 0 ? 'shootdown' : 'jump'; break;
+      case PState.Fall: f = p.aimUp > 0 ? 'up' : p.aimUp < 0 ? 'shootdown' : 'fall'; break;
       case PState.Crouch: f = p.shootT > 0 ? 'crouchshoot' : 'crouch'; break;
       case PState.Block: f = 'block'; break;
       case PState.Hurt: f = 'hurt'; break;
       case PState.Dash: f = 'dash'; break;
       case PState.Victory: f = 'victory'; break;
-      default: f = p.aimUp ? 'up' : p.shootT > 0 ? 'shoot' : Math.floor(p.anim * 1.5) % 2 ? 'idle' : 'idle2';
+      default: f = p.aimUp > 0 ? 'up' : p.aimUp < 0 ? 'shootdown' : p.shootT > 0 ? 'shoot' : Math.floor(p.anim * 1.5) % 2 ? 'idle' : 'idle2';
     }
     if (w.shield.active && w.shield.t < 0.15 && w.shield.state === 'out') f = 'throw';
     spr.setTexture((w.shield.active ? 'heroNS_' : 'hero_') + f);

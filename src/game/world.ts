@@ -323,11 +323,30 @@ export class World {
     return null; // pool exhausted → drop (GDD perf: cap active projectiles)
   }
 
+  /**
+   * Aim assist for horizontal shots: returns an angle toward the nearest enemy in front whose body a
+   * straight shot would miss (e.g. rats, bugs, spiders under the muzzle), or null to keep shooting straight.
+   */
+  aimAssist(mx: number, my: number, facing: number, maxAng = 0.5): number | null {
+    let best: number | null = null, bd = 1e9;
+    for (const e of this.enemies) {
+      if (!e.alive || e.hidden()) continue;
+      const dx = (e.cx() - mx) * facing;
+      if (dx < 0.3 || dx > 9.5) continue;
+      const ty = e.cy();
+      if (Math.abs(ty - my) <= e.h * 0.5 + 0.05) { if (dx < bd) { bd = dx; best = null; } continue; } // straight shot already hits the nearest one
+      const a = Math.atan2(ty - my, dx);
+      if (Math.abs(a) > maxAng) continue;
+      if (dx < bd) { bd = dx; best = facing > 0 ? a : Math.PI - a; }
+    }
+    return best;
+  }
+
   firePlayer(kind: PK, x: number, y: number, vx: number, vy: number, dmg: number) {
     const p = this.allocProj();
     if (!p) return null;
     p.team = 0; p.kind = kind; p.x = x; p.y = y; p.vx = vx; p.vy = vy; p.dmg = dmg;
-    p.w = 0.35; p.h = 0.35; p.life = 0.75;
+    p.w = 0.38; p.h = 0.45; p.life = 0.75;
     return p;
   }
 

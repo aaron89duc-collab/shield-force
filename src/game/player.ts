@@ -23,7 +23,7 @@ export class Player extends Body {
   jumps = 0; coyote = 0; jumpBuf = 0; dropT = 0;
   invuln = 0; hurtT = 0;
   dead = false; deadT = 0;
-  crouch = false; aimUp = 0; // 0 none, 1 diagonal, 2 straight up
+  crouch = false; aimUp = 0; // -1 down-diagonal, 0 none, 1 up-diagonal, 2 straight up
   blocking = false; blockT = 0; blockedSomething = false;
   fireCd = 0; throwCd = 0; smashCd = 0; smashT = 0;
   ult = 0; // 0..100
@@ -100,7 +100,7 @@ export class Player extends Body {
     }
 
     // ---- movement ----
-    const wantCrouch = this.onGround && c.moveY > 0.6 && Math.abs(c.moveX) < 0.5;
+    const wantCrouch = this.onGround && c.moveY > 0.6 && Math.abs(c.moveX) < 0.3;
     this.setCrouch(wantCrouch);
     if (!this.blocking && c.moveX !== 0) this.facing = c.moveX > 0 ? 1 : -1;
     if (this.blocking && c.moveX !== 0 && this.blockT < 0.05) this.facing = c.moveX > 0 ? 1 : -1;
@@ -141,7 +141,7 @@ export class Player extends Body {
     }
 
     // ---- aiming / shooting ----
-    this.aimUp = c.moveY < -0.5 ? (Math.abs(c.moveX) > 0.3 ? 1 : 2) : 0;
+    this.aimUp = c.moveY < -0.5 ? (Math.abs(c.moveX) > 0.3 ? 1 : 2) : (c.moveY > 0.5 && Math.abs(c.moveX) > 0.3 ? -1 : 0);
     if (c.fireHeld && !this.blocking && this.fireCd <= 0) {
       this.fire(W);
     }
@@ -165,9 +165,12 @@ export class Player extends Body {
     let ang: number;
     if (this.aimUp === 2) ang = -Math.PI / 2;
     else if (this.aimUp === 1) ang = this.facing > 0 ? -Math.PI / 4 : -Math.PI * 3 / 4;
+    else if (this.aimUp === -1) ang = this.facing > 0 ? Math.PI / 5 : Math.PI - Math.PI / 5;
     else ang = this.facing > 0 ? 0 : Math.PI;
     const m = this.muzzle();
     const mx = m.x, my = m.y;
+    // aim assist: tilt horizontal shots toward low / slightly offset enemies in front (touch-friendly)
+    if (this.aimUp === 0) { const a = W.aimAssist(mx, my, this.facing); if (a !== null) ang = a; }
     const speed = 18;
     const shots: number[] = mode === 2 ? [-0.22, 0, 0.22] : [0];
     const offs: number[] = mode === 1 ? [-0.16, 0.16] : [0];
@@ -186,7 +189,8 @@ export class Player extends Body {
     const b = this.y + this.h;
     if (this.aimUp === 2) return { x: this.cx() + this.facing * 0.37, y: b - 1.95 };
     if (this.aimUp === 1) return { x: this.cx() + this.facing * 0.6, y: b - 1.75 };
-    return { x: this.cx() + this.facing * 0.82, y: b - (this.crouch ? 0.8 : 1.08) };
+    if (this.aimUp === -1) return { x: this.cx() + this.facing * 0.82, y: b - 0.95 };
+    return { x: this.cx() + this.facing * 0.82, y: b - (this.crouch ? 0.62 : 1.08) };
   }
 
   /** Respawn helper. */
@@ -221,8 +225,13 @@ export class Shield {
     this.stamp++;
     this.x = p.cx() + p.facing * 0.5; this.y = p.y + p.h - 1.1;
     const sp = 17;
+    if (p.crouch) this.y = p.y + p.h - 0.55;
     if (up) { this.vx = p.facing * sp * 0.707; this.vy = -sp * 0.707; }
-    else { this.vx = p.facing * sp; this.vy = 0; }
+    else {
+      const a = W.aimAssist(this.x, this.y, p.facing, 0.3);
+      const ang = a ?? (p.facing > 0 ? 0 : Math.PI);
+      this.vx = Math.cos(ang) * sp; this.vy = Math.sin(ang) * sp;
+    }
     this.dmg = Math.round((up ? stats.throwDmg() * 45 / 35 : stats.throwDmg()) * (p.superT > 0 ? 1.5 : 1));
     this.bomb = p.bombT > 0;
     p.throwCd = up ? 2.2 : 2.0;

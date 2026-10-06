@@ -42,8 +42,8 @@ export class ShopScene extends Phaser.Scene {
     g.fillStyle(0x000000, 0.45); g.fillEllipse(px, 386, 150, 20);
     this.preview = this.add.image(px, 388, 'hero_portrait').setOrigin(HERO_FX / HERO_W, HERO_FY / HERO_H);
     this.preview.setScale(this.preview.scaleX * 0.86);
-    this.nameT = this.add.text(px, 420, '', { fontFamily: FONT, fontSize: '17px', color: '#ffe28a', stroke: '#000', strokeThickness: 4, align: 'center' }).setOrigin(0.5);
-    this.infoT = this.add.text(px, 446, '', { fontFamily: FONT2, fontSize: '13px', color: '#9fb0d0', align: 'center' }).setOrigin(0.5);
+    this.nameT = this.add.text(px, 414, '', { fontFamily: FONT, fontSize: '17px', color: '#ffe28a', stroke: '#000', strokeThickness: 4, align: 'center' }).setOrigin(0.5);
+    this.infoT = this.add.text(px, 432, '', { fontFamily: FONT2, fontSize: '13px', color: '#9fb0d0', align: 'center', lineSpacing: 2 }).setOrigin(0.5, 0);
     this.action = button(this, px, 488, 270, 50, '', () => this.doAction(), 0xe8a13b, 20);
 
     // tabs

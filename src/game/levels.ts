@@ -46,6 +46,7 @@ function level1(L: Level) {
   L.hint(3, 'Kéo cần bên trái để chạy • Phím: ← → / A D');
   L.hint(9, 'JUMP để nhảy — nhấn thêm lần nữa trên không để NHẢY ĐÔI');
   L.hint(15, 'Giữ FIRE để bắn liên tục • Kéo cần lên để bắn chéo / lên trời');
+  L.hint(20, 'Quái thấp? Đạn tự hướng xuống — hoặc kéo cần chéo xuống / ngồi để bắn thấp');
   L.many(E.MUTANT, [16, 21]);
   L.coins(10, 8.6, 4);
   // S1: street — 3 Mutant + 1 Drone

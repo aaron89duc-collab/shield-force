@@ -146,11 +146,11 @@ function shoe(c: C, s: ShoeDef, x: number, y: number, back: boolean) {
 export interface Pose {
   legA: number; legB: number; liftA: number; liftB: number;
   crouch: boolean; lean: number; bob: number;
-  arm: 'hold' | 'shoot' | 'up' | 'block' | 'throw' | 'victory' | 'dash' | 'hero';
+  arm: 'hold' | 'shoot' | 'up' | 'block' | 'throw' | 'victory' | 'dash' | 'hero' | 'low' | 'down';
   shield: boolean; swing: number; hurt?: boolean;
 }
 
-export const HERO_FRAMES = ['idle', 'idle2', 'run0', 'run1', 'run2', 'run3', 'run4', 'run5', 'jump', 'fall', 'crouch', 'block', 'hurt', 'dash', 'victory', 'up', 'shoot', 'throw', 'crouchshoot'] as const;
+export const HERO_FRAMES = ['idle', 'idle2', 'run0', 'run1', 'run2', 'run3', 'run4', 'run5', 'jump', 'fall', 'crouch', 'block', 'hurt', 'dash', 'victory', 'up', 'shoot', 'throw', 'crouchshoot', 'shootdown'] as const;
 
 export function heroPose(f: string, shield: boolean): Pose {
   const P: Pose = { legA: 6, legB: -6, liftA: 0, liftB: 0, crouch: false, lean: 0, arm: 'hold', shield, bob: 0, swing: 0 };
@@ -166,7 +166,8 @@ export function heroPose(f: string, shield: boolean): Pose {
     case 'jump': P.legA = 10; P.legB = -8; P.liftA = 14; P.liftB = 5; P.arm = 'shoot'; P.bob = -2; break;
     case 'fall': P.legA = 6; P.legB = -10; P.liftA = 4; P.liftB = 9; P.arm = 'shoot'; break;
     case 'crouch': P.crouch = true; P.legA = 13; P.legB = -11; P.arm = 'hold'; break;
-    case 'crouchshoot': P.crouch = true; P.legA = 13; P.legB = -11; P.arm = 'shoot'; break;
+    case 'crouchshoot': P.crouch = true; P.legA = 13; P.legB = -11; P.arm = 'low'; break;
+    case 'shootdown': P.arm = 'down'; P.legA = 9; P.legB = -8; P.lean = 2; break;
     case 'block': P.legA = 11; P.legB = -11; P.arm = 'block'; P.lean = -1; break;
     case 'hurt': P.legA = -3; P.legB = -13; P.lean = -5; P.arm = 'hold'; P.hurt = true; break;
     case 'dash': P.legA = 17; P.legB = -17; P.lean = 7; P.liftB = 5; P.arm = 'dash'; break;
@@ -256,7 +257,7 @@ export function drawHero(g: Pen, P: Pose, head: CanvasImageSource | null, O: Out
       c.fillStyle = hex(T.emblem); c.beginPath(); c.arc(fx + L, top + 17, 3, 0, Math.PI * 2); c.fill();
     }
     if (T.text) {
-      c.font = 'bold 10px Arial, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
+      c.font = "800 11px 'Baloo 2'"; c.textAlign = 'center'; c.textBaseline = 'middle';
       c.lineWidth = 3; c.strokeStyle = '#ffffff'; c.strokeText(T.text, fx + L, top + 15);
       c.fillStyle = hex(T.emblem); c.fillText(T.text, fx + L, top + 15);
     }
@@ -315,6 +316,14 @@ export function drawHero(g: Pen, P: Pose, head: CanvasImageSource | null, O: Out
     case 'up':
       arm([sx + 7, sy - 10], [sx + 8, sy - 24]);
       if (P.shield) { c.save(); c.translate(sx + 8, sy - 31); c.scale(1, 0.45); drawShield(g, 0, 0, 17); c.restore(); }
+      break;
+    case 'low':
+      arm([sx + 10, sy + 12], [sx + 20, sy + 18]);
+      if (P.shield) drawShield(g, sx + 25, sy + 19, 16, 0.45);
+      break;
+    case 'down':
+      arm([sx + 8, sy + 13], [sx + 17, sy + 24]);
+      if (P.shield) { c.save(); c.translate(sx + 22, sy + 27); c.rotate(0.6); drawShield(g, 0, 0, 16, 0.45); c.restore(); }
       break;
     case 'block': case 'dash':
       arm([sx + 9, sy + 9], [sx + 16, sy + 8]);

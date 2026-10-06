@@ -5,6 +5,7 @@ import { HUDScene } from './scenes/hud';
 import { ShopScene } from './scenes/shop';
 import { suspendAudio } from './systems/sound';
 import { Z } from './art/pen';
+import { FONT_TITLE, loadFonts, TEST_STRING } from './fonts';
 
 // All textures are drawn at Z× resolution; images/tile-sprites/text default to that density.
 {
@@ -12,7 +13,16 @@ import { Z } from './art/pen';
   const oImage = F.image, oTile = F.tileSprite, oText = F.text;
   F.image = function (x: number, y: number, key: string, frame?: string) { return oImage.call(this, x, y, key, frame).setScale(1 / Z); };
   F.tileSprite = function (x: number, y: number, w: number, h: number, key: string, frame?: string) { return oTile.call(this, x, y, w, h, key, frame).setTileScale(1 / Z); };
-  F.text = function (x: number, y: number, t: string, style?: any) { return oText.call(this, x, y, t, { resolution: Z, ...(style || {}) }); };
+  F.text = function (x: number, y: number, t: string, style?: any) {
+    const st = { resolution: Z, testString: TEST_STRING, padding: { left: 2, right: 2, top: 4, bottom: 3 }, ...(style || {}) };
+    if (st.fontFamily === FONT_TITLE) {
+      if (!st.fontStyle) st.fontStyle = '800';
+      // Baloo 2 has a smaller x-height than Arial Black: scale up so layouts keep the same visual size
+      const m = /^(\d+(?:\.\d+)?)px$/.exec(String(st.fontSize ?? ''));
+      if (m) st.fontSize = `${Math.round(Number(m[1]) * 1.12)}px`;
+    }
+    return oText.call(this, x, y, t, st);
+  };
 }
 
 /** Virtual height is fixed at 540 px (11.25 world units); width follows the device aspect (16:9 … 21:9; narrower screens are letterboxed). */
@@ -22,7 +32,8 @@ function widthFor() {
   return Math.round(H * aspect) * Z;
 }
 
-const game = new Phaser.Game({
+function startGame() {
+return new Phaser.Game({
   type: Phaser.AUTO,
   parent: 'game',
   backgroundColor: '#0b1020',
@@ -34,6 +45,10 @@ const game = new Phaser.Game({
   fps: { target: 60 },
   scene: [BootScene, SheetScene, MenuScene, LevelSelectScene, UpgradeScene, SettingsScene, CreditsScene, GameScene, HUDScene, ShopScene],
 });
+}
+
+let game!: Phaser.Game;
+loadFonts().then(() => { game = startGame(); (window as any).__game = game; });
 
 // Re-fit the virtual width when the device rotates / window resizes.
 let resizeTimer = 0;
@@ -58,4 +73,3 @@ document.addEventListener('visibilitychange', () => {
   }
 });
 
-(window as any).__game = game;
