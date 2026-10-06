@@ -1,0 +1,21 @@
+{
+  "name": "shield-force",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --host",
+    "typecheck": "tsc --noEmit",
+    "test:sim": "esbuild test/sim.ts --bundle --platform=node --outfile=.sim.cjs --log-level=warning && node .sim.cjs god"
+  },
+  "dependencies": {
+    "phaser": "^3.90.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2",
+    "typescript": "^5.9.3",
+    "vite": "^8.3.2"
+  }
+}
