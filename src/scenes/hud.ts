@@ -7,7 +7,7 @@ import { persist, save, LEVEL_COUNT } from '../systems/save';
 import { updateMusic, unlockAudio } from '../systems/sound';
 import { fmtTime } from '../game/util';
 import { LEVEL_INFO } from '../game/levels';
-import { button, Btn, FONT, FONT2, initCam, txt, VH, VW } from './ui';
+import { button, Btn, FONT, FONT2, initCam, panel, txt, VH, VW } from './ui';
 import type { GameScene } from './game';
 import { lighten } from '../art/pen';
 
@@ -21,6 +21,7 @@ export class HUDScene extends Phaser.Scene {
   private face!: Phaser.GameObjects.Image;
   private hpT!: Phaser.GameObjects.Text;
   private coinT!: Phaser.GameObjects.Text;
+  private coinIcon!: Phaser.GameObjects.Image;
   private bossT!: Phaser.GameObjects.Text;
   private bannerT!: Phaser.GameObjects.Text;
   private bannerSub!: Phaser.GameObjects.Text;
@@ -47,7 +48,8 @@ export class HUDScene extends Phaser.Scene {
     this.face = this.add.image(0, 0, 'heroHead').setDisplaySize(38, 46).setDepth(6);
     const st = (size: number, color = '#ffffff') => ({ fontFamily: FONT, fontSize: `${size}px`, color, stroke: '#000000', strokeThickness: 4 });
     this.hpT = this.add.text(0, 0, '', st(14)).setDepth(6);
-    this.coinT = this.add.text(0, 0, '', st(18, '#f2c94c')).setDepth(6);
+    this.coinT = this.add.text(0, 0, '', st(18, '#ffe28a')).setDepth(6);
+    this.coinIcon = this.add.image(0, 0, 'pu_7').setScale(0.75 / 2).setDepth(6);
     this.bossT = this.add.text(0, 0, '', st(16)).setOrigin(0.5, 1).setDepth(6);
     this.bannerT = this.add.text(0, 0, '', st(48)).setOrigin(0.5).setDepth(20);
     this.bannerSub = this.add.text(0, 0, '', st(20, '#9fe8dc')).setOrigin(0.5).setDepth(20);
@@ -124,7 +126,8 @@ export class HUDScene extends Phaser.Scene {
     g.fillStyle(0x140a24); g.fillRoundedRect(bx0, y0 + 25, bw0, 12, 4);
     if (uf > 0) { const uc = uf >= 1 ? (Math.floor(time / 120) % 2 ? 0xf0c0ff : 0xc06cff) : 0x9a4be8; g.fillGradientStyle(lighten(uc, 0.4), lighten(uc, 0.4), uc, uc, 1); g.fillRoundedRect(bx0, y0 + 25, Math.max(8, bw0 * uf), 12, 4); }
     g.lineStyle(2, 0x0d0f1a, 1); g.strokeRoundedRect(bx0, y0 + 25, bw0, 12, 4);
-    this.coinT.setText(`💰 ${save.coins + (w.rewarded ? 0 : w.coinsEarned)}`).setPosition(x0, y0 + 60);
+    this.coinT.setText(`${save.coins + (w.rewarded ? 0 : w.coinsEarned)}`).setPosition(x0 + 20, y0 + 59);
+    this.coinIcon.setPosition(x0 + 8, y0 + 71);
 
     // power-ups
     const pus: [PU, number][] = [];
@@ -205,6 +208,7 @@ export class HUDScene extends Phaser.Scene {
     const W = VW(this), H = VH(this);
     const L = this.pauseLayer;
     L.push(this.add.rectangle(0, 0, W, H, 0x000000, 0.7).setOrigin(0).setDepth(40).setInteractive());
+    L.push(panel(this, W / 2, 262, 400, 420).setDepth(40.5));
     L.push(txt(this, W / 2, 70, 'TẠM DỪNG', 40).setDepth(41));
     L.push(txt(this, W / 2, 112, `Màn ${this.gs.levelNum}: ${LEVEL_INFO[this.gs.levelNum - 1].name}`, 16, '#9fe8dc', false).setDepth(41));
     const add = (b: Btn) => { b.box.setDepth(41); b.label.setDepth(42); L.push(b.box, b.label); return b; };
@@ -230,6 +234,7 @@ export class HUDScene extends Phaser.Scene {
     const W = VW(this), H = VH(this);
     const L = this.victoryLayer;
     L.push(this.add.rectangle(0, 0, W, H, 0x000000, 0.65).setOrigin(0).setDepth(40).setInteractive());
+    L.push(panel(this, W / 2, 238, 480, 300).setDepth(40.5));
     L.push(txt(this, W / 2, 70, 'HOÀN THÀNH MÀN!', 44, '#f2c94c').setDepth(41));
     const n = this.gs.levelNum;
     L.push(txt(this, W / 2, 118, `Màn ${n}: ${LEVEL_INFO[n - 1].name}`, 18, '#9fe8dc', false).setDepth(41));
@@ -239,17 +244,18 @@ export class HUDScene extends Phaser.Scene {
       ['Quái hạ gục', String(v.kills)],
       ['Xu nhặt được', `+${v.coins}`],
       ['Thưởng màn', `+${v.reward}`],
-      ['Tổng xu', `💰 ${save.coins}`],
+      ['Tổng xu', `● ${save.coins}`],
     ];
     rows.forEach(([k, val], i) => {
       L.push(this.add.text(W / 2 - 170, 160 + i * 34, k, { fontFamily: FONT2, fontSize: '19px', color: '#c0c8e0' }).setDepth(41));
       L.push(this.add.text(W / 2 + 170, 160 + i * 34, val, { fontFamily: FONT, fontSize: '19px', color: '#ffffff' }).setOrigin(1, 0).setDepth(41));
     });
     const add = (b: Btn) => { b.box.setDepth(41); b.label.setDepth(42); L.push(b.box, b.label); };
-    if (n < LEVEL_COUNT) add(button(this, W / 2 + 110, H - 70, 200, 52, `MÀN ${n + 1} ▶`, () => this.gs.scene.start('Game', { level: n + 1 }), 0xe8553b, 20));
+    if (n < LEVEL_COUNT) add(button(this, W / 2 + 220, H - 70, 200, 52, `MÀN ${n + 1} ▶`, () => this.gs.scene.start('Game', { level: n + 1 }), 0xe8553b, 20));
     else L.push(txt(this, W / 2, H - 130, 'Bạn đã đánh bại Overlord! Cảm ơn đã chơi!', 20, '#7fffe0').setDepth(41));
-    add(button(this, W / 2 - 110, H - 70, 200, 52, 'NÂNG CẤP', () => this.gs.scene.start('Upgrade'), 0x2bb3a0, 20));
-    if (n >= LEVEL_COUNT) add(button(this, W / 2 + 110, H - 70, 200, 52, 'MENU', () => this.gs.scene.start('Menu'), 0x5a5f78, 20));
+    add(button(this, W / 2 - 220, H - 70, 200, 52, 'NÂNG CẤP', () => this.gs.scene.start('Upgrade'), 0x2bb3a0, 20));
+    add(button(this, W / 2, H - 70, 200, 52, 'TỦ ĐỒ', () => this.gs.scene.start('Shop'), 0xb04be8, 20));
+    if (n >= LEVEL_COUNT) add(button(this, W / 2 + 220, H - 70, 200, 52, 'MENU', () => this.gs.scene.start('Menu'), 0x5a5f78, 20));
   }
 }
 

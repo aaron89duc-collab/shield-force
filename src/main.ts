@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { BootScene, SheetScene, MenuScene, LevelSelectScene, UpgradeScene, SettingsScene, CreditsScene } from './scenes/menus';
 import { GameScene } from './scenes/game';
 import { HUDScene } from './scenes/hud';
+import { ShopScene } from './scenes/shop';
 import { suspendAudio } from './systems/sound';
 import { Z } from './art/pen';
 
@@ -31,7 +32,7 @@ const game = new Phaser.Game({
   input: { activePointers: 5 },
   render: { antialias: true, powerPreference: 'high-performance' },
   fps: { target: 60 },
-  scene: [BootScene, SheetScene, MenuScene, LevelSelectScene, UpgradeScene, SettingsScene, CreditsScene, GameScene, HUDScene],
+  scene: [BootScene, SheetScene, MenuScene, LevelSelectScene, UpgradeScene, SettingsScene, CreditsScene, GameScene, HUDScene, ShopScene],
 });
 
 // Re-fit the virtual width when the device rotates / window resizes.
@@ -43,7 +44,7 @@ window.addEventListener('resize', () => {
     if (Math.abs(w - game.scale.width) > 8 && window.innerWidth > window.innerHeight) {
       game.scale.setGameSize(w, H * Z);
       for (const s of game.scene.getScenes(true)) {
-        if (['Menu', 'LevelSelect', 'Upgrade', 'Settings', 'Credits'].includes(s.scene.key)) s.scene.restart();
+        if (['Menu', 'LevelSelect', 'Upgrade', 'Settings', 'Credits', 'Shop'].includes(s.scene.key)) s.scene.restart();
       }
     }
   }, 150);

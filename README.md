@@ -1,4 +1,4 @@
-# Shield Force — web game (Phaser 3 + TypeScript)
+# Đậu Đậu - Đội trưởng Mỹ — web game (Phaser 3 + TypeScript)
 
 2D side-scrolling run-and-gun / action platformer theo GDD v1.0, chạy trên trình duyệt (ưu tiên điện thoại Android, màn hình ngang) và deploy lên Vercel.
 
@@ -10,6 +10,8 @@
 - Điều khiển cảm ứng (joystick nổi + 5 nút, đa điểm chạm, 3 kiểu bố cục) và bàn phím
 - Đồ họa v1.1: sprite vẽ bằng Canvas2D ở độ phân giải 2× (đổ bóng cel-shading, viền đen kiểu sticker), nền 4 lớp parallax, đạo cụ trang trí theo từng màn, hiệu ứng lửa đầu nòng / nổ / phát sáng cộng màu, HUD có ảnh chân dung
 - Nhân vật chính: đầu lấy từ ảnh chân dung `public/hero-head.png`, thân chiến binh chibi thiết kế nguyên bản
+- Tủ đồ (v1.2): mua & mặc trang phục bằng xu — 7 áo, 6 quần, 6 giày dép (thử đồ trước khi mua), lưu trong save
+- Lính địch hình người vẽ chi tiết (mũ giáp, mặt nạ, áo giáp, súng) với 4 khung chạy + khung tấn công; cảnh nền có sương mù chiều sâu và lớp tiền cảnh
 - Âm thanh được tạo bằng code (không dùng asset bản quyền)
 
 ## Chạy local
@@ -60,9 +62,9 @@ src/
     boss.ts               9 boss: phase, attack pattern, telegraph, weak point
     level.ts, levels.ts   DSL dựng màn + 10 màn thiết kế tay
     entities.ts           Body/Solid/Proj/Hazard/Pickup/Warn
-  scenes/                 Boot, Menu, LevelSelect, Upgrade, Settings, Credits, Game, HUD
+  scenes/                 Boot, Menu, LevelSelect, Upgrade, Shop (tủ đồ), Settings, Credits, Game, HUD
   systems/                save (localStorage), sound (WebAudio synth), controls (touch + keyboard)
-  art/                    pen.ts (Canvas2D + outline), textures.ts (nhân vật/quái/boss/UI), themes.ts (nền, địa hình, đạo cụ)
+  art/                    pen.ts (Canvas2D + outline), hero.ts (nhân vật chính), outfits.ts (danh mục trang phục), soldiers.ts (lính địch), textures.ts (quái/boss/UI), themes.ts (nền, địa hình, tiền cảnh)
 public/hero-head.png      Ảnh đầu nhân vật chính — thay file này (PNG nền trong suốt, tỉ lệ ~297×360) để đổi mặt
 ```
 
@@ -77,4 +79,4 @@ Thông số chính lấy từ GDD: HP 100, speed 5 u/s, jump 11, gravity 25, Sho
 
 ## Lưu ý IP
 
-Bản này dùng nhân vật và khiên thiết kế nguyên bản (không dùng hình ảnh/tên Marvel). Nếu muốn dùng IP Captain America cho bản phát hành cần có license.
+Hình ảnh nhân vật và khiên là thiết kế nguyên bản. Tên game nhắc tới nhân vật "Đội trưởng Mỹ" (Captain America — IP của Marvel/Disney), nên chỉ phù hợp dùng cá nhân/gia đình; nếu phát hành công khai hoặc thương mại cần đổi tên hoặc có license.

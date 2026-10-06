@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { play, Sfx, unlockAudio } from '../systems/sound';
 import { Z } from '../art/pen';
 import { ensureBackgrounds } from '../art/themes';
+import { save } from '../systems/save';
 
 /** Logical (virtual) screen size; the camera zooms by Z so drawing stays in 540-tall coordinates. */
 export const VW = (s: Phaser.Scene) => s.scale.width / Z;
@@ -38,6 +39,30 @@ export function button(scene: Phaser.Scene, x: number, y: number, w: number, h: 
     setEnabled(v: boolean) { enabled = v; box.setAlpha(v ? 1 : 0.4); t.setAlpha(v ? 1 : 0.5); },
     setText(s: string) { t.setText(s); },
   };
+}
+
+/** Dark glass panel (nine-slice), centered at x,y. */
+export function panel(scene: Phaser.Scene, x: number, y: number, w: number, h: number, tint = 0xffffff, alpha = 1) {
+  return scene.add.nineslice(x, y, 'panel', undefined, w * Z, h * Z, 22 * Z, 22 * Z, 22 * Z, 22 * Z).setScale(1 / Z).setTint(tint).setAlpha(alpha);
+}
+
+/** Coin counter chip; returns a setter. */
+export function coinChip(scene: Phaser.Scene, x: number, y: number, value: number) {
+  panel(scene, x - 62, y, 124, 40);
+  scene.add.image(x - 104, y, 'pu_7').setScale(0.9 / Z);
+  const t = scene.add.text(x - 84, y, String(value), { fontFamily: FONT, fontSize: '19px', color: '#ffe28a', stroke: '#000', strokeThickness: 4 }).setOrigin(0, 0.5);
+  return (v: number) => t.setText(String(v));
+}
+
+/** Standard screen header: back button, gold title, coin chip. Returns the coin setter. */
+export function header(scene: Phaser.Scene, title: string, back = 'Menu') {
+  const W = VW(scene);
+  const g = scene.add.graphics();
+  g.fillGradientStyle(0x060a18, 0x060a18, 0x060a18, 0x060a18, 0.85, 0.85, 0, 0); g.fillRect(0, 0, W, 78);
+  button(scene, 74, 36, 116, 42, '◀', () => scene.scene.start(back), 0x5a5f78, 20);
+  const t = txt(scene, W / 2, 36, title, 30, '#ffe28a');
+  t.setShadow(0, 3, '#c0501a', 0, true, true);
+  return coinChip(scene, W - 14, 36, save.coins);
 }
 
 /** Animated menu backdrop using a level theme. */

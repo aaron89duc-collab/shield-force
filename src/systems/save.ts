@@ -18,6 +18,8 @@ export interface SaveData {
   musicEnabled: boolean;
   buttonLayout: number; // 0 default, 1 mirrored, 2 large
   bestTime: number[];
+  outfit: { top: string; pants: string; shoes: string };
+  owned: string[]; // outfit item ids bought in the wardrobe shop
 }
 
 function defaults(): SaveData {
@@ -26,6 +28,8 @@ function defaults(): SaveData {
     hpUpgrade: 1, shieldUpgrade: 1, speedUpgrade: 1, throwUpgrade: 1, ultimateUpgrade: 1,
     vibrationEnabled: true, soundEnabled: true, musicEnabled: true, buttonLayout: 0,
     bestTime: new Array(LEVEL_COUNT).fill(0),
+    outfit: { top: 'top_navy', pants: 'pants_navy', shoes: 'shoes_boot' },
+    owned: ['top_navy', 'pants_navy', 'shoes_boot'],
   };
 }
 
@@ -40,6 +44,10 @@ function migrate(raw: any): SaveData {
   out.throwUpgrade = lv(out.throwUpgrade); out.ultimateUpgrade = lv(out.ultimateUpgrade);
   if (!Array.isArray(out.completedLevels)) out.completedLevels = [];
   if (!Array.isArray(out.bestTime) || out.bestTime.length !== LEVEL_COUNT) out.bestTime = d.bestTime;
+  if (!Array.isArray(out.owned)) out.owned = d.owned;
+  for (const id of d.owned) if (!out.owned.includes(id)) out.owned.push(id);
+  if (!out.outfit || typeof out.outfit !== 'object') out.outfit = { ...d.outfit };
+  for (const k of ['top', 'pants', 'shoes'] as const) if (typeof out.outfit[k] !== 'string' || !out.owned.includes(out.outfit[k])) out.outfit[k] = d.outfit[k];
   return out;
 }
 

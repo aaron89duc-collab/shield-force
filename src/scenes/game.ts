@@ -6,7 +6,7 @@ import { BS } from '../game/boss';
 import { PState, Controls } from '../game/player';
 import { GROUND_Y } from '../game/level';
 import { PPU, rndr } from '../game/util';
-import { drawTerrain, ensureBackgrounds, releaseBackgrounds, THEMES } from '../art/themes';
+import { drawTerrain, ensureBackgrounds, FORE_H, releaseBackgrounds, THEMES } from '../art/themes';
 import { HERO_FX, HERO_FY, HERO_H, HERO_W } from '../art/textures';
 import { persist, save, LEVEL_COUNT } from '../systems/save';
 import { Bot } from './bot';
@@ -32,6 +32,7 @@ export class GameScene extends Phaser.Scene {
   private sky!: Phaser.GameObjects.Image;
   private far!: Phaser.GameObjects.TileSprite;
   private mid!: Phaser.GameObjects.TileSprite;
+  private fore!: Phaser.GameObjects.TileSprite;
   private fxAdd!: Phaser.GameObjects.Graphics;
   private flash!: Phaser.GameObjects.Image;
   private fxPool: Phaser.GameObjects.Image[] = [];
@@ -73,12 +74,13 @@ export class GameScene extends Phaser.Scene {
     const th = THEMES[world.level.theme];
     void th;
     releaseBackgrounds(this, [0, world.level.theme]);
-    const { skyKey, farKey, midKey, nearKey } = ensureBackgrounds(this, world.level.theme);
+    const { skyKey, farKey, midKey, nearKey, foreKey } = ensureBackgrounds(this, world.level.theme);
 
     this.sky = this.add.image(0, 0, skyKey).setOrigin(0).setScrollFactor(0).setDepth(-10).setDisplaySize(W, H);
     this.far = this.add.tileSprite(0, 0, W, H, farKey).setOrigin(0).setScrollFactor(0).setDepth(-9).setTileScale(1);
     this.mid = this.add.tileSprite(0, 0, W, H, midKey).setOrigin(0).setScrollFactor(0).setDepth(-8.5).setTileScale(1).setAlpha(0.95);
     this.near = this.add.tileSprite(0, 0, W, H, nearKey).setOrigin(0).setScrollFactor(0).setDepth(-8).setTileScale(1);
+    this.fore = this.add.tileSprite(0, H - FORE_H * 0.62, W, FORE_H * 0.62, foreKey).setOrigin(0).setScrollFactor(0).setDepth(18).setTileScale(0.62);
 
     this.fxBack = this.add.graphics().setDepth(0);
     this.bakeTerrain();
@@ -139,6 +141,7 @@ export class GameScene extends Phaser.Scene {
     const W = size.width / Z, H = size.height / Z;
     this.world.viewW = W / PPU;
     this.far.setSize(W, H); this.mid.setSize(W, H); this.near.setSize(W, H);
+    this.fore.setSize(W, FORE_H * 0.62).setPosition(0, H - FORE_H * 0.62);
     this.sky.setDisplaySize(W, H);
   }
 
@@ -194,6 +197,7 @@ export class GameScene extends Phaser.Scene {
     this.far.tilePositionX = w.camX * PPU * 0.1; this.far.tilePositionY = dy * 0.05;
     this.mid.tilePositionX = w.camX * PPU * 0.22; this.mid.tilePositionY = dy * 0.1;
     this.near.tilePositionX = w.camX * PPU * 0.4; this.near.tilePositionY = dy * 0.2;
+    this.fore.tilePositionX = w.camX * PPU * 1.3 / 0.62; this.fore.tilePositionY = Math.max(0, -dy * 0.6) / 0.62;
     // world fx events (explosions etc.)
     while (w.fx.length) {
       const f = w.fx.shift()!;
@@ -300,7 +304,7 @@ export class GameScene extends Phaser.Scene {
         e.sprite = spr;
       }
       const attacking = e.state === S.WINDUP || e.state === S.ATTACK || e.state === S.AIM || e.state === S.LEAP || e.state === S.CHARGE || e.state === S.FUSE || e.state === S.EMERGE;
-      const frame = attacking ? 2 : (Math.abs(e.vx) > 0.2 || e.type.flying ? Math.floor(e.anim * 7) % 2 : 0);
+      const frame = attacking ? 4 : (Math.abs(e.vx) > 0.2 || e.type.flying ? Math.floor(e.anim * 8) % 4 : 0);
       spr.setTexture(`e_${e.type.key}_${frame}`);
       spr.setFlipX(e.facing < 0);
       spr.setPosition(e.cx() * PPU, (e.y + e.h) * PPU);
